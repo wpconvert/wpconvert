@@ -394,24 +394,67 @@
       line-height: 1.5;
     }
 
-    .tags-box {
+    .tags-wrap {
       width: 100%;
-      min-height: 44px;
-      max-height: 110px;
-      resize: vertical;
       border: 1px solid #d1d5db;
       background: #ffffff;
       color: #0f172a;
       border-radius: 12px;
-      padding: 10px 12px;
-      font: inherit;
-      line-height: 1.5;
-      outline: none;
+      padding: 8px;
+      min-height: 48px;
     }
 
-    .tags-box:focus {
+    .tags-wrap:focus-within {
       border-color: rgba(56, 189, 248, 0.9);
       box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14);
+    }
+
+    .tags-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #f1f5f9;
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .tag-chip button {
+      border: 0;
+      background: transparent;
+      color: #475569;
+      padding: 0;
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .tag-chip button:hover {
+      color: #dc2626;
+      transform: none;
+    }
+
+    .tags-inline-input {
+      width: 100%;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: #0f172a;
+      padding: 6px 4px;
+      font: inherit;
+      box-shadow: none !important;
     }
 
     .right-info {
@@ -644,7 +687,7 @@
         <div class="card-head">
           <div>
             <h2>Kategori & Tags</h2>
-            <span>Kategori centang, tags isi manual</span>
+            <span>Kategori centang, tags Enter / koma</span>
           </div>
         </div>
 
@@ -656,8 +699,11 @@
 
           <div class="field">
             <label for="tagsInput">Tags</label>
-            <textarea id="tagsInput" class="tags-box" placeholder="Contoh: BO BONAFIT, BO TERAMAN, CASAGROUP"></textarea>
-            <div class="small-note">Pisahkan tags dengan koma. Tags akan otomatis dibuat kalau belum ada.</div>
+            <div id="tagsWrap" class="tags-wrap">
+              <div id="tagsChips" class="tags-chips"></div>
+              <input id="tagsInput" class="tags-inline-input" type="text" placeholder="Ketik tag lalu tekan Enter">
+            </div>
+            <div class="small-note">Tekan Enter atau koma untuk memisahkan tags. Bisa hapus per tag dari kotaknya.</div>
           </div>
 
           <div class="right-info">
@@ -708,6 +754,7 @@
     const titleEl = document.getElementById('title');
     const contentEl = document.getElementById('content');
     const tagsInputEl = document.getElementById('tagsInput');
+    const tagsChipsEl = document.getElementById('tagsChips');
     const postBtn = document.getElementById('postBtn');
     const clearBtn = document.getElementById('clearBtn');
     const logoutBtn = document.getElementById('logoutBtn');
@@ -735,6 +782,7 @@
     let featuredFile = null;
     let featuredPreviewUrl = '';
     let authData = null;
+    let tagsState = [];
 
     function showToast(text, isError = false) {
       toastEl.textContent = text;
@@ -786,6 +834,39 @@
         .replace(/"/g, '&quot;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+    }
+
+    function normalizeTag(tag) {
+      return String(tag || '').trim().replace(/\s+/g, ' ');
+    }
+
+    function renderTagChips() {
+      tagsChipsEl.innerHTML = '';
+
+      tagsState.forEach((tag, index) => {
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.innerHTML = `
+          <span>${tag}</span>
+          <button type="button" data-index="${index}">×</button>
+        `;
+        tagsChipsEl.appendChild(chip);
+      });
+    }
+
+    function addTag(tag) {
+      const clean = normalizeTag(tag);
+      if (!clean) return;
+
+      const exists = tagsState.some(t => t.toLowerCase() === clean.toLowerCase());
+      if (exists) return;
+
+      tagsState.push(clean);
+      renderTagChips();
+    }
+
+    function parseTagsInput() {
+      return [...tagsState];
     }
 
     function formatDoc(command) {
@@ -1002,14 +1083,6 @@
         .filter(Boolean);
     }
 
-    function parseTagsInput() {
-      return tagsInputEl.value
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(Boolean)
-        .filter((tag, index, arr) => arr.indexOf(tag) === index);
-    }
-
     async function getOrCreateTagId(tagName) {
       const searchUrl = `${WP_BASE}/wp-json/wp/v2/tags?search=${encodeURIComponent(tagName)}&per_page=100`;
       const searchRes = await fetch(searchUrl, {
@@ -1135,6 +1208,8 @@
       titleEl.value = '';
       contentEl.innerHTML = '';
       tagsInputEl.value = '';
+      tagsState = [];
+      renderTagChips();
       featuredFile = null;
       resetFeaturedPreview();
       setStatus(featuredStatusEl, '');
@@ -1215,6 +1290,37 @@
       showToast('Clipboard tidak berisi gambar', true);
     });
 
+    tagsInputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+
+        const parts = tagsInputEl.value.split(',');
+        parts.forEach(part => addTag(part));
+
+        tagsInputEl.value = '';
+      } else if (e.key === 'Backspace' && !tagsInputEl.value.trim() && tagsState.length) {
+        tagsState.pop();
+        renderTagChips();
+      }
+    });
+
+    tagsInputEl.addEventListener('blur', () => {
+      if (tagsInputEl.value.trim()) {
+        const parts = tagsInputEl.value.split(',');
+        parts.forEach(part => addTag(part));
+        tagsInputEl.value = '';
+      }
+    });
+
+    tagsChipsEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-index]');
+      if (!btn) return;
+
+      const index = Number(btn.dataset.index);
+      tagsState.splice(index, 1);
+      renderTagChips();
+    });
+
     document.addEventListener('click', (e) => {
       if (!linkBubbleEl.contains(e.target) && !e.target.closest('#content a')) {
         hideLinkBubble();
@@ -1231,6 +1337,7 @@
 
     if (requireAuth()) {
       loadCategories();
+      renderTagChips();
     }
   </script>
 </body>
