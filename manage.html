@@ -412,7 +412,7 @@ function getAuth() {
 
 function authHeader() {
   const auth = getAuth();
-  return "Basic " + btoa(auth.username + ":" + auth.password.replace(/\\s/g, ""));
+  return "Basic " + btoa(auth.username + ":" + auth.password.replace(/\s/g, ""));
 }
 
 function requireAuth() {
@@ -453,13 +453,13 @@ async function confirmDelete() {
     confirmDeleteBtn.textContent = "Menghapus...";
 
     const res = await fetch(`${WP}/wp-json/wp/v2/posts/${pendingDeleteId}`, {
-      method: "PUT",
+      method: "DELETE",
       headers: {
         "Authorization": authHeader(),
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        status: "trash"
+        force: false
       })
     });
 
