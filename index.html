@@ -622,19 +622,19 @@
       <div class="card">
         <div class="card-head">
           <div>
-            <h2>Kategori</h2>
+            <h2>Tags</h2>
             <span>Bisa centang lebih dari satu</span>
           </div>
         </div>
 
         <div class="card-body">
-          <div id="categoryList" class="category-list"></div>
+          <div id="tagList" class="category-list"></div>
 
           <div class="right-info">
             <strong style="color:#e5eefc;">Catatan:</strong><br>
             - Featured Image dipakai untuk gambar tampilan depan.<br>
             - Gambar di isi artikel akan diupload otomatis saat dipaste ke editor.<br>
-            - Login diambil dari halaman <strong>login.html</strong>.
+            - Login diambil dari halaman login.html.
           </div>
         </div>
       </div>
@@ -659,20 +659,18 @@
     const LOGIN_PAGE = 'https://wpconvert.github.io/wpconvert/login.html';
     const STORAGE_KEY = 'wpConvertAuth';
 
-    const WANTED_CATEGORIES = [
-      'BUKTI JP CASINO',
-      'BUKTI JP SLOT',
-      'BUKTI JP SPORT',
-      'BUKTI JP TOGEL',
-      'DAFTAR BO TERPERCAYA',
+    const WANTED_TAGS = [
+      'BO BONAFIT',
+      'BO TERAMAN',
+      'BO TERPERCAYA',
+      'BUKTI JP DOLLARTOTO',
       'CASAGROUP',
-      'CASATOTO',
       'CASAPRIZE',
+      'CASATOTO',
       'DOLLARTOTO',
       'MERDEKATOTO',
-      'TOTOWAYANG',
       'TOTORAJA',
-      'Uncategorized'
+      'TOTOWAYANG'
     ];
 
     const titleEl = document.getElementById('title');
@@ -687,7 +685,7 @@
     const featuredMetaEl = document.getElementById('featuredMeta');
     const featuredStatusEl = document.getElementById('featuredStatus');
 
-    const categoryListEl = document.getElementById('categoryList');
+    const tagListEl = document.getElementById('tagList');
 
     const toastEl = document.getElementById('toast');
     const linkModalEl = document.getElementById('linkModal');
@@ -703,7 +701,7 @@
     let toastTimer = null;
     let featuredFile = null;
     let featuredPreviewUrl = '';
-    let categoryMap = new Map();
+    let tagMap = new Map();
     let authData = null;
 
     function showToast(text, isError = false) {
@@ -929,48 +927,48 @@
       }
     }
 
-    async function loadCategories() {
+    async function loadTags() {
       try {
-        const response = await fetch(`${WP_BASE}/wp-json/wp/v2/categories?per_page=100`);
+        const response = await fetch(`${WP_BASE}/wp-json/wp/v2/tags?per_page=100`);
         const data = await response.json();
 
-        categoryListEl.innerHTML = '';
-        categoryMap.clear();
+        tagListEl.innerHTML = '';
+        tagMap.clear();
 
-        const filtered = WANTED_CATEGORIES
+        const filtered = WANTED_TAGS
           .map(name => data.find(item => item.name === name))
           .filter(Boolean);
 
-        filtered.forEach(cat => {
-          categoryMap.set(cat.id, cat);
+        filtered.forEach(tag => {
+          tagMap.set(tag.id, tag);
 
           const row = document.createElement('div');
           row.className = 'category-item';
 
           const input = document.createElement('input');
           input.type = 'checkbox';
-          input.id = `cat-${cat.id}`;
-          input.value = cat.id;
+          input.id = `tag-${tag.id}`;
+          input.value = tag.id;
 
           const label = document.createElement('label');
-          label.setAttribute('for', `cat-${cat.id}`);
-          label.textContent = cat.name;
+          label.setAttribute('for', `tag-${tag.id}`);
+          label.textContent = tag.name;
 
           row.appendChild(input);
           row.appendChild(label);
-          categoryListEl.appendChild(row);
+          tagListEl.appendChild(row);
         });
 
         if (!filtered.length) {
-          categoryListEl.innerHTML = '<div class="small-note">Kategori tidak ditemukan.</div>';
+          tagListEl.innerHTML = '<div class="small-note">Tags tidak ditemukan.</div>';
         }
       } catch (error) {
-        categoryListEl.innerHTML = '<div class="small-note">Gagal load kategori.</div>';
+        tagListEl.innerHTML = '<div class="small-note">Gagal load tags.</div>';
       }
     }
 
-    function getSelectedCategoryIds() {
-      return Array.from(categoryListEl.querySelectorAll('input[type="checkbox"]:checked'))
+    function getSelectedTagIds() {
+      return Array.from(tagListEl.querySelectorAll('input[type="checkbox"]:checked'))
         .map(el => Number(el.value))
         .filter(Boolean);
     }
@@ -978,7 +976,7 @@
     async function postToWordPress() {
       const title = titleEl.value.trim();
       const content = contentEl.innerHTML.trim();
-      const categoryIds = getSelectedCategoryIds();
+      const tagIds = getSelectedTagIds();
 
       if (!title) {
         setStatus(postStatusEl, 'Judul wajib diisi.', 'error');
@@ -1011,7 +1009,7 @@
           title,
           content,
           status: 'publish',
-          categories: categoryIds
+          tags: tagIds
         };
 
         if (featuredMediaId) {
@@ -1051,7 +1049,7 @@
       setStatus(featuredStatusEl, '');
       setStatus(postStatusEl, '');
 
-      categoryListEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      tagListEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.checked = false;
       });
 
@@ -1141,7 +1139,7 @@
     logoutBtn.addEventListener('click', logoutNow);
 
     if (requireAuth()) {
-      loadCategories();
+      loadTags();
     }
   </script>
 </body>
