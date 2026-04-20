@@ -364,6 +364,7 @@
     .choice-list {
       display: grid;
       gap: 10px;
+      margin-bottom: 16px;
     }
 
     .choice-item {
@@ -391,6 +392,26 @@
       font-weight: 600;
       cursor: pointer;
       line-height: 1.5;
+    }
+
+    .tags-box {
+      width: 100%;
+      min-height: 44px;
+      max-height: 110px;
+      resize: vertical;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #0f172a;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font: inherit;
+      line-height: 1.5;
+      outline: none;
+    }
+
+    .tags-box:focus {
+      border-color: rgba(56, 189, 248, 0.9);
+      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14);
     }
 
     .right-info {
@@ -623,7 +644,7 @@
         <div class="card-head">
           <div>
             <h2>Kategori & Tags</h2>
-            <span>Kategori bisa centang, tags isi manual</span>
+            <span>Kategori centang, tags isi manual</span>
           </div>
         </div>
 
@@ -635,8 +656,8 @@
 
           <div class="field">
             <label for="tagsInput">Tags</label>
-            <input id="tagsInput" type="text" placeholder="Contoh: BO BONAFIT, BO TERAMAN, CASAGROUP">
-            <div class="small-note">Pisahkan tags dengan koma, nanti otomatis masuk ke kolom Tags di WordPress.</div>
+            <textarea id="tagsInput" class="tags-box" placeholder="Contoh: BO BONAFIT, BO TERAMAN, CASAGROUP"></textarea>
+            <div class="small-note">Pisahkan tags dengan koma. Tags akan otomatis dibuat kalau belum ada.</div>
           </div>
 
           <div class="right-info">
