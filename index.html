@@ -361,12 +361,12 @@
       line-height: 1.6;
     }
 
-    .category-list {
+    .choice-list {
       display: grid;
       gap: 10px;
     }
 
-    .category-item {
+    .choice-item {
       display: flex;
       align-items: flex-start;
       gap: 10px;
@@ -376,7 +376,7 @@
       border: 1px solid var(--line);
     }
 
-    .category-item input[type="checkbox"] {
+    .choice-item input[type="checkbox"] {
       width: 18px;
       height: 18px;
       margin: 2px 0 0;
@@ -384,7 +384,7 @@
       flex-shrink: 0;
     }
 
-    .category-item label {
+    .choice-item label {
       margin: 0;
       font-size: 14px;
       color: var(--text);
@@ -622,19 +622,28 @@
       <div class="card">
         <div class="card-head">
           <div>
-            <h2>Tags</h2>
-            <span>Bisa centang lebih dari satu</span>
+            <h2>Kategori & Tags</h2>
+            <span>Kategori bisa centang, tags isi manual</span>
           </div>
         </div>
 
         <div class="card-body">
-          <div id="tagList" class="category-list"></div>
+          <div class="field">
+            <label>Kategori</label>
+            <div id="categoryList" class="choice-list"></div>
+          </div>
+
+          <div class="field">
+            <label for="tagsInput">Tags</label>
+            <input id="tagsInput" type="text" placeholder="Contoh: BO BONAFIT, BO TERAMAN, CASAGROUP">
+            <div class="small-note">Pisahkan tags dengan koma, nanti otomatis masuk ke kolom Tags di WordPress.</div>
+          </div>
 
           <div class="right-info">
             <strong style="color:#e5eefc;">Catatan:</strong><br>
             - Featured Image dipakai untuk gambar tampilan depan.<br>
             - Gambar di isi artikel akan diupload otomatis saat dipaste ke editor.<br>
-            - Login diambil dari halaman login.html.
+            - Tags dibuat / dipasang otomatis saat post.
           </div>
         </div>
       </div>
@@ -659,22 +668,25 @@
     const LOGIN_PAGE = 'https://wpconvert.github.io/wpconvert/login.html';
     const STORAGE_KEY = 'wpConvertAuth';
 
-    const WANTED_TAGS = [
-      'BO BONAFIT',
-      'BO TERAMAN',
-      'BO TERPERCAYA',
-      'BUKTI JP DOLLARTOTO',
+    const WANTED_CATEGORIES = [
+      'BUKTI JP CASINO',
+      'BUKTI JP SLOT',
+      'BUKTI JP SPORT',
+      'BUKTI JP TOGEL',
+      'DAFTAR BO TERPERCAYA',
       'CASAGROUP',
-      'CASAPRIZE',
       'CASATOTO',
+      'CASAPRIZE',
       'DOLLARTOTO',
       'MERDEKATOTO',
+      'TOTOWAYANG',
       'TOTORAJA',
-      'TOTOWAYANG'
+      'Uncategorized'
     ];
 
     const titleEl = document.getElementById('title');
     const contentEl = document.getElementById('content');
+    const tagsInputEl = document.getElementById('tagsInput');
     const postBtn = document.getElementById('postBtn');
     const clearBtn = document.getElementById('clearBtn');
     const logoutBtn = document.getElementById('logoutBtn');
@@ -685,7 +697,7 @@
     const featuredMetaEl = document.getElementById('featuredMeta');
     const featuredStatusEl = document.getElementById('featuredStatus');
 
-    const tagListEl = document.getElementById('tagList');
+    const categoryListEl = document.getElementById('categoryList');
 
     const toastEl = document.getElementById('toast');
     const linkModalEl = document.getElementById('linkModal');
@@ -701,7 +713,6 @@
     let toastTimer = null;
     let featuredFile = null;
     let featuredPreviewUrl = '';
-    let tagMap = new Map();
     let authData = null;
 
     function showToast(text, isError = false) {
@@ -927,56 +938,107 @@
       }
     }
 
-    async function loadTags() {
+    async function loadCategories() {
       try {
-        const response = await fetch(`${WP_BASE}/wp-json/wp/v2/tags?per_page=100`);
+        const response = await fetch(`${WP_BASE}/wp-json/wp/v2/categories?per_page=100`);
         const data = await response.json();
 
-        tagListEl.innerHTML = '';
-        tagMap.clear();
+        categoryListEl.innerHTML = '';
 
-        const filtered = WANTED_TAGS
+        const filtered = WANTED_CATEGORIES
           .map(name => data.find(item => item.name === name))
           .filter(Boolean);
 
-        filtered.forEach(tag => {
-          tagMap.set(tag.id, tag);
-
+        filtered.forEach(cat => {
           const row = document.createElement('div');
-          row.className = 'category-item';
+          row.className = 'choice-item';
 
           const input = document.createElement('input');
           input.type = 'checkbox';
-          input.id = `tag-${tag.id}`;
-          input.value = tag.id;
+          input.id = `cat-${cat.id}`;
+          input.value = cat.id;
 
           const label = document.createElement('label');
-          label.setAttribute('for', `tag-${tag.id}`);
-          label.textContent = tag.name;
+          label.setAttribute('for', `cat-${cat.id}`);
+          label.textContent = cat.name;
 
           row.appendChild(input);
           row.appendChild(label);
-          tagListEl.appendChild(row);
+          categoryListEl.appendChild(row);
         });
 
         if (!filtered.length) {
-          tagListEl.innerHTML = '<div class="small-note">Tags tidak ditemukan.</div>';
+          categoryListEl.innerHTML = '<div class="small-note">Kategori tidak ditemukan.</div>';
         }
       } catch (error) {
-        tagListEl.innerHTML = '<div class="small-note">Gagal load tags.</div>';
+        categoryListEl.innerHTML = '<div class="small-note">Gagal load kategori.</div>';
       }
     }
 
-    function getSelectedTagIds() {
-      return Array.from(tagListEl.querySelectorAll('input[type="checkbox"]:checked'))
+    function getSelectedCategoryIds() {
+      return Array.from(categoryListEl.querySelectorAll('input[type="checkbox"]:checked'))
         .map(el => Number(el.value))
         .filter(Boolean);
+    }
+
+    function parseTagsInput() {
+      return tagsInputEl.value
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(Boolean)
+        .filter((tag, index, arr) => arr.indexOf(tag) === index);
+    }
+
+    async function getOrCreateTagId(tagName) {
+      const searchUrl = `${WP_BASE}/wp-json/wp/v2/tags?search=${encodeURIComponent(tagName)}&per_page=100`;
+      const searchRes = await fetch(searchUrl, {
+        headers: {
+          'Authorization': authHeader()
+        }
+      });
+      const searchData = await searchRes.json().catch(() => []);
+
+      const exact = Array.isArray(searchData)
+        ? searchData.find(item => item.name && item.name.toLowerCase() === tagName.toLowerCase())
+        : null;
+
+      if (exact) return exact.id;
+
+      const createRes = await fetch(`${WP_BASE}/wp-json/wp/v2/tags`, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: tagName })
+      });
+
+      const createData = await createRes.json().catch(() => ({}));
+
+      if (!createRes.ok) {
+        if (createData && createData.data && createData.data.term_id) {
+          return createData.data.term_id;
+        }
+        throw new Error(createData.message || `Gagal membuat tag: ${tagName}`);
+      }
+
+      return createData.id;
+    }
+
+    async function resolveTagIds(tagNames) {
+      const ids = [];
+      for (const name of tagNames) {
+        const id = await getOrCreateTagId(name);
+        if (id) ids.push(id);
+      }
+      return ids;
     }
 
     async function postToWordPress() {
       const title = titleEl.value.trim();
       const content = contentEl.innerHTML.trim();
-      const tagIds = getSelectedTagIds();
+      const categoryIds = getSelectedCategoryIds();
+      const tagNames = parseTagsInput();
 
       if (!title) {
         setStatus(postStatusEl, 'Judul wajib diisi.', 'error');
@@ -1005,10 +1067,17 @@
           setStatus(featuredStatusEl, 'Featured Image berhasil diupload.', 'success');
         }
 
+        let tagIds = [];
+        if (tagNames.length) {
+          setStatus(postStatusEl, 'Sedang proses tags...');
+          tagIds = await resolveTagIds(tagNames);
+        }
+
         const payload = {
           title,
           content,
           status: 'publish',
+          categories: categoryIds,
           tags: tagIds
         };
 
@@ -1044,12 +1113,13 @@
     function clearAll() {
       titleEl.value = '';
       contentEl.innerHTML = '';
+      tagsInputEl.value = '';
       featuredFile = null;
       resetFeaturedPreview();
       setStatus(featuredStatusEl, '');
       setStatus(postStatusEl, '');
 
-      tagListEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      categoryListEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.checked = false;
       });
 
@@ -1139,7 +1209,7 @@
     logoutBtn.addEventListener('click', logoutNow);
 
     if (requireAuth()) {
-      loadTags();
+      loadCategories();
     }
   </script>
 </body>
