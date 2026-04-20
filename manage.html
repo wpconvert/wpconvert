@@ -6,149 +6,453 @@
 <title>Manage Post</title>
 
 <style>
-body {
-  margin: 0;
-  font-family: Arial;
-  background: #0b1020;
-  color: white;
-}
+  :root {
+    --bg: #0b1020;
+    --panel: rgba(17, 24, 39, 0.92);
+    --line: rgba(148, 163, 184, 0.18);
+    --text: #e5eefc;
+    --muted: #94a3b8;
+    --primary: #22c55e;
+    --primary-hover: #16a34a;
+    --secondary: #334155;
+    --secondary-hover: #475569;
+    --danger: #dc2626;
+    --danger-hover: #b91c1c;
+    --shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    --radius: 22px;
+  }
 
-.wrap {
-  max-width: 900px;
-  margin: 30px auto;
-  padding: 0 16px;
-}
+  * { box-sizing: border-box; }
 
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
+  body {
+    margin: 0;
+    font-family: Inter, Arial, Helvetica, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 28%),
+      radial-gradient(circle at top right, rgba(34, 197, 94, 0.14), transparent 26%),
+      linear-gradient(160deg, #020617 0%, #0b1020 55%, #111827 100%);
+    min-height: 100vh;
+  }
 
-h1 {
-  margin: 0;
-}
+  .wrap {
+    width: min(980px, calc(100% - 32px));
+    margin: 28px auto;
+  }
 
-button {
-  border: none;
-  padding: 10px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-}
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 18px;
+    padding: 18px 20px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(17, 24, 39, 0.86));
+    box-shadow: var(--shadow);
+  }
 
-.btn-new {
-  background: #22c55e;
-  color: white;
-}
+  .topbar h1 {
+    margin: 0;
+    font-size: clamp(24px, 4vw, 34px);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+  }
 
-.btn-edit {
-  background: #3b82f6;
-  color: white;
-}
+  .topbar p {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
 
-.btn-delete {
-  background: #dc2626;
-  color: white;
-}
+  .topbar-right {
+    flex-shrink: 0;
+  }
 
-.post {
-  background: #111827;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
-}
+  button {
+    border: 0;
+    border-radius: 14px;
+    padding: 12px 16px;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.18s ease, opacity 0.18s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
 
-.post-title {
-  font-size: 16px;
-  margin-bottom: 6px;
-}
+  button:hover { transform: translateY(-1px); }
+  button:active { transform: translateY(0); }
 
-.post-date {
-  font-size: 12px;
-  color: #94a3b8;
-  margin-bottom: 10px;
-}
+  .btn-new {
+    background: var(--primary);
+    color: white;
+  }
 
-.actions {
-  display: flex;
-  gap: 10px;
-}
+  .btn-new:hover {
+    background: var(--primary-hover);
+  }
+
+  .btn-edit {
+    background: #2563eb;
+    color: white;
+  }
+
+  .btn-edit:hover {
+    background: #1d4ed8;
+  }
+
+  .btn-delete {
+    background: var(--danger);
+    color: white;
+  }
+
+  .btn-delete:hover {
+    background: var(--danger-hover);
+  }
+
+  .list-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+  }
+
+  .list-head {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255,255,255,0.02);
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .post-list {
+    padding: 16px;
+  }
+
+  .post {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .post:last-child {
+    margin-bottom: 0;
+  }
+
+  .post-title {
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.5;
+    margin-bottom: 6px;
+  }
+
+  .post-date {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .post-link {
+    display: inline-block;
+    margin-bottom: 12px;
+    color: #93c5fd;
+    text-decoration: none;
+    font-size: 12px;
+    word-break: break-all;
+  }
+
+  .post-link:hover {
+    text-decoration: underline;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .status {
+    padding: 16px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .status.error {
+    color: #fca5a5;
+  }
+
+  .status.success {
+    color: #86efac;
+  }
+
+  .empty {
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    background: #16a34a;
+    color: #fff;
+    padding: 14px 18px;
+    border-radius: 14px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-14px) scale(0.96);
+    transition: all 0.28s ease;
+    z-index: 2000;
+    font-weight: 700;
+  }
+
+  .toast.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+  }
+
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s ease;
+    z-index: 2100;
+  }
+
+  .modal.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .modal-box {
+    width: min(460px, 100%);
+    background: #ffffff;
+    color: #0f172a;
+    border-radius: 22px;
+    padding: 20px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+    transform: translateY(18px) scale(0.97);
+    transition: all 0.25s ease;
+  }
+
+  .modal.show .modal-box {
+    transform: translateY(0) scale(1);
+  }
+
+  .modal-box h3 {
+    margin: 0 0 10px;
+    font-size: 20px;
+  }
+
+  .modal-box p {
+    margin: 0;
+    color: #475569;
+    line-height: 1.7;
+    font-size: 14px;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+
+  .btn-cancel {
+    background: #334155;
+    color: white;
+  }
+
+  .btn-cancel:hover {
+    background: #475569;
+  }
+
+  .btn-confirm-delete {
+    background: var(--danger);
+    color: white;
+  }
+
+  .btn-confirm-delete:hover {
+    background: var(--danger-hover);
+  }
+
+  @media (max-width: 680px) {
+    .topbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .topbar-right {
+      width: 100%;
+    }
+
+    .btn-new {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .actions {
+      flex-direction: column;
+    }
+
+    .actions button {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .modal-actions {
+      flex-direction: column;
+    }
+
+    .modal-actions button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
 </style>
 </head>
 
 <body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>List Post</h1>
+        <p>Menampilkan 10 post terbaru dari WordPress.</p>
+      </div>
+      <div class="topbar-right">
+        <button class="btn-new" onclick="goNew()">POST BARU</button>
+      </div>
+    </div>
 
-<div class="wrap">
-  <div class="topbar">
-    <h1>List Post</h1>
-    <button class="btn-new" onclick="goNew()">POST BARU</button>
+    <div class="list-card">
+      <div class="list-head">Kelola post terbaru: Edit atau pindahkan ke Trash.</div>
+      <div id="list" class="post-list"></div>
+      <div id="status" class="status"></div>
+    </div>
   </div>
 
-  <div id="list"></div>
-</div>
+  <div id="toast" class="toast"></div>
+
+  <div id="deleteModal" class="modal">
+    <div class="modal-box">
+      <h3>Hapus Post?</h3>
+      <p id="deleteText">Post ini akan dipindahkan ke Trash di WordPress.</p>
+      <div class="modal-actions">
+        <button class="btn-cancel" type="button" id="cancelDeleteBtn">Batal</button>
+        <button class="btn-confirm-delete" type="button" id="confirmDeleteBtn">Ya, Hapus</button>
+      </div>
+    </div>
+  </div>
 
 <script>
 const WP = "https://buktijpcasa.com";
 const STORAGE_KEY = "wpConvertAuth";
 const CONVERT_PAGE = "https://wpconvert.github.io/wpconvert/";
 
+const listEl = document.getElementById("list");
+const statusEl = document.getElementById("status");
+const toastEl = document.getElementById("toast");
+
+const deleteModalEl = document.getElementById("deleteModal");
+const deleteTextEl = document.getElementById("deleteText");
+const cancelDeleteBtn = document.getElementById("cancelDeleteBtn");
+const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+
+let toastTimer = null;
+let pendingDeleteId = null;
+let pendingDeleteTitle = "";
+
+function showToast(text, isError = false) {
+  toastEl.textContent = text;
+  toastEl.style.background = isError ? "#dc2626" : "#16a34a";
+  toastEl.classList.add("show");
+
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastEl.classList.remove("show");
+  }, 2200);
+}
+
+function setStatus(text, type = "") {
+  statusEl.textContent = text;
+  statusEl.className = "status" + (type ? " " + type : "");
+}
+
 function getAuth() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return null;
-  const data = JSON.parse(raw);
-  return data;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data.username || !data.password) return null;
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 function authHeader() {
   const auth = getAuth();
-  return "Basic " + btoa(auth.username + ":" + auth.password.replace(/\s/g,""));
+  return "Basic " + btoa(auth.username + ":" + auth.password.replace(/\\s/g, ""));
+}
+
+function requireAuth() {
+  const auth = getAuth();
+  if (!auth) {
+    window.location.href = CONVERT_PAGE + "login.html";
+    return false;
+  }
+  return true;
 }
 
 function goNew() {
   window.location.href = CONVERT_PAGE;
 }
 
-async function loadPosts() {
-  try {
-    const res = await fetch(`${WP}/wp-json/wp/v2/posts?per_page=10&_embed`);
-    const data = await res.json();
-
-    const list = document.getElementById("list");
-    list.innerHTML = "";
-
-    data.forEach(post => {
-      const el = document.createElement("div");
-      el.className = "post";
-
-      el.innerHTML = `
-        <div class="post-title">${post.title.rendered}</div>
-        <div class="post-date">${new Date(post.date).toLocaleString()}</div>
-        <div class="actions">
-          <button class="btn-edit" onclick="editPost(${post.id})">Edit</button>
-          <button class="btn-delete" onclick="deletePost(${post.id})">Hapus</button>
-        </div>
-      `;
-
-      list.appendChild(el);
-    });
-
-  } catch (err) {
-    document.getElementById("list").innerHTML = "Gagal load post";
-  }
-}
-
 function editPost(id) {
-  // kirim ID ke convert
   window.location.href = CONVERT_PAGE + "?edit=" + id;
 }
 
-async function deletePost(id) {
-  if (!confirm("Yakin hapus post ini?")) return;
+function openDeleteModal(id, title) {
+  pendingDeleteId = id;
+  pendingDeleteTitle = title || "post ini";
+  deleteTextEl.textContent = `Post "${pendingDeleteTitle}" akan dipindahkan ke Trash di WordPress.`;
+  deleteModalEl.classList.add("show");
+}
+
+function closeDeleteModal() {
+  deleteModalEl.classList.remove("show");
+  pendingDeleteId = null;
+  pendingDeleteTitle = "";
+}
+
+async function confirmDelete() {
+  if (!pendingDeleteId) return;
 
   try {
-    const res = await fetch(`${WP}/wp-json/wp/v2/posts/${id}`, {
+    confirmDeleteBtn.disabled = true;
+    confirmDeleteBtn.textContent = "Menghapus...";
+
+    const res = await fetch(`${WP}/wp-json/wp/v2/posts/${pendingDeleteId}`, {
       method: "POST",
       headers: {
         "Authorization": authHeader(),
@@ -159,17 +463,83 @@ async function deletePost(id) {
       })
     });
 
-    if (!res.ok) throw new Error();
+    const data = await res.json().catch(() => ({}));
 
-    alert("Post berhasil dipindahkan ke Trash");
+    if (!res.ok) {
+      throw new Error(data.message || "Gagal hapus post");
+    }
+
+    closeDeleteModal();
+    showToast("Post berhasil dipindahkan ke Trash");
     loadPosts();
-
-  } catch {
-    alert("Gagal hapus post");
+  } catch (err) {
+    showToast(err.message || "Gagal hapus post", true);
+  } finally {
+    confirmDeleteBtn.disabled = false;
+    confirmDeleteBtn.textContent = "Ya, Hapus";
   }
 }
 
-loadPosts();
+async function loadPosts() {
+  try {
+    setStatus("Sedang memuat 10 post terbaru...");
+    listEl.innerHTML = "";
+
+    const res = await fetch(`${WP}/wp-json/wp/v2/posts?per_page=10&_embed`);
+    const data = await res.json();
+
+    if (!Array.isArray(data) || !data.length) {
+      listEl.innerHTML = `<div class="empty">Belum ada post terbaru.</div>`;
+      setStatus("");
+      return;
+    }
+
+    data.forEach(post => {
+      const title = post.title?.rendered || "(Tanpa Judul)";
+      const date = new Date(post.date).toLocaleString("id-ID");
+      const link = post.link || "#";
+
+      const el = document.createElement("div");
+      el.className = "post";
+
+      el.innerHTML = `
+        <div class="post-title">${title}</div>
+        <div class="post-date">${date}</div>
+        <a class="post-link" href="${link}" target="_blank">${link}</a>
+        <div class="actions">
+          <button class="btn-edit" type="button">Edit</button>
+          <button class="btn-delete" type="button">Hapus</button>
+        </div>
+      `;
+
+      const editBtn = el.querySelector(".btn-edit");
+      const deleteBtn = el.querySelector(".btn-delete");
+
+      editBtn.addEventListener("click", () => editPost(post.id));
+      deleteBtn.addEventListener("click", () => openDeleteModal(post.id, title.replace(/<[^>]*>/g, "")));
+
+      listEl.appendChild(el);
+    });
+
+    setStatus("10 post terbaru berhasil dimuat.", "success");
+  } catch (err) {
+    listEl.innerHTML = `<div class="empty">Gagal load post.</div>`;
+    setStatus("Gagal load post terbaru.", "error");
+  }
+}
+
+cancelDeleteBtn.addEventListener("click", closeDeleteModal);
+confirmDeleteBtn.addEventListener("click", confirmDelete);
+
+deleteModalEl.addEventListener("click", (e) => {
+  if (e.target === deleteModalEl) {
+    closeDeleteModal();
+  }
+});
+
+if (requireAuth()) {
+  loadPosts();
+}
 </script>
 
 </body>
