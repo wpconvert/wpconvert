@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login WP Convert</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(17, 24, 39, 0.92);
+      --line: rgba(148, 163, 184, 0.18);
+      --text: #e5eefc;
+      --muted: #94a3b8;
+      --primary: #22c55e;
+      --primary-hover: #16a34a;
+      --secondary: #334155;
+      --secondary-hover: #475569;
+      --danger: #dc2626;
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(34, 197, 94, 0.14), transparent 26%),
+        linear-gradient(160deg, #020617 0%, #0b1020 55%, #111827 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: min(560px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(10px);
+    }
+
+    .head {
+      padding: 26px 26px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .head h1 {
+      margin: 0 0 8px;
+      font-size: clamp(26px, 4vw, 36px);
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .body {
+      padding: 24px 26px 26px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #dbeafe;
+      letter-spacing: .02em;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      color: #0f172a;
+      border-radius: 16px;
+      padding: 14px 15px;
+      font: inherit;
+      outline: none;
+      transition: .18s ease;
+    }
+
+    input:focus {
+      border-color: rgba(56, 189, 248, 0.9);
+      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 13px 18px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform .12s ease, background .18s ease, opacity .18s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      flex: 1;
+    }
+
+    .btn-primary:hover { background: var(--primary-hover); }
+
+    .btn-secondary {
+      background: var(--secondary);
+      color: white;
+    }
+
+    .btn-secondary:hover { background: var(--secondary-hover); }
+
+    .status {
+      margin-top: 14px;
+      min-height: 22px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .status.success { color: #86efac; }
+    .status.error { color: #fca5a5; }
+
+    .tips {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .tips strong {
+      color: #e5eefc;
+    }
+
+    .hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 640px) {
+      .head, .body {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .actions {
+        flex-direction: column;
+      }
+
+      .btn-primary,
+      .btn-secondary {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <h1>Login WP Convert</h1>
+      <p>Halaman ini untuk isi username WordPress dan Application Password dulu. Data disimpan sementara di browser, lalu dipakai di halaman convert.</p>
+    </div>
+
+    <div class="body">
+      <div class="field">
+        <label for="wpUser">Username WP</label>
+        <input id="wpUser" type="text" placeholder="admin" autocomplete="off" />
+      </div>
+
+      <div class="field">
+        <label for="wpPass">Application Password</label>
+        <input id="wpPass" type="password" placeholder="Masukkan application password" autocomplete="off" />
+        <div class="hint">Password boleh ditempel seperti dari WordPress. Spasi akan dibersihkan otomatis saat disimpan.</div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" id="saveBtn" type="button">Simpan & Lanjut ke Convert</button>
+        <button class="btn-secondary" id="clearBtn" type="button">Hapus</button>
+      </div>
+
+      <div id="status" class="status"></div>
+
+      <div class="tips">
+        <strong>Catatan:</strong><br>
+        - Yang dipakai di sini harus <strong>username WordPress</strong> dan <strong>Application Password</strong>.<br>
+        - Data disimpan sementara di browser dengan <strong>localStorage</strong> supaya halaman convert bisa membacanya.<br>
+        - File convert nanti cukup mengambil data dari sini, jadi tidak perlu hardcode di script.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const wpUserEl = document.getElementById('wpUser');
+    const wpPassEl = document.getElementById('wpPass');
+    const saveBtn = document.getElementById('saveBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const statusEl = document.getElementById('status');
+
+    const STORAGE_KEY = 'wpConvertAuth';
+
+    function setStatus(text, type = '') {
+      statusEl.textContent = text;
+      statusEl.className = 'status' + (type ? ' ' + type : '');
+    }
+
+    function loadSavedAuth() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+
+        const data = JSON.parse(raw);
+        if (data.username) wpUserEl.value = data.username;
+        if (data.password) wpPassEl.value = data.password;
+        setStatus('Data login sebelumnya ditemukan.', 'success');
+      } catch (error) {
+        setStatus('Gagal membaca data login sebelumnya.', 'error');
+      }
+    }
+
+    function saveAuth() {
+      const username = wpUserEl.value.trim();
+      const password = wpPassEl.value.replace(/\s+/g, '');
+
+      if (!username || !password) {
+        setStatus('Username dan Application Password wajib diisi.', 'error');
+        return;
+      }
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          username,
+          password
+        }));
+
+        setStatus('Data login berhasil disimpan. Sekarang bisa lanjut ke halaman convert.', 'success');
+
+        setTimeout(() => {
+          window.location.href = 'index.html';
+        }, 500);
+      } catch (error) {
+        setStatus('Gagal menyimpan data login di browser.', 'error');
+      }
+    }
+
+    function clearAuth() {
+      localStorage.removeItem(STORAGE_KEY);
+      wpUserEl.value = '';
+      wpPassEl.value = '';
+      setStatus('Data login berhasil dihapus.', 'success');
+      wpUserEl.focus();
+    }
+
+    saveBtn.addEventListener('click', saveAuth);
+    clearBtn.addEventListener('click', clearAuth);
+
+    loadSavedAuth();
+  </script>
+</body>
+</html>
