@@ -71,14 +71,21 @@
       z-index: 1;
     }
 
+    .hero-side {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: flex-end;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+
     .hero-media {
       width: 120px;
       height: 120px;
       border-radius: 18px;
       overflow: hidden;
-      flex-shrink: 0;
-      position: relative;
-      z-index: 1;
       background: rgba(255,255,255,0.04);
     }
 
@@ -343,6 +350,17 @@
       color: white;
     }
 
+    .btn-list {
+      background: #2563eb;
+      color: white;
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+
+    .btn-list:hover {
+      background: #1d4ed8;
+    }
+
     .status {
       margin-top: 12px;
       min-height: 22px;
@@ -590,11 +608,15 @@
         flex-direction: column;
       }
 
+      .hero-side {
+        width: 100%;
+        align-items: flex-start;
+      }
+
       .hero-media {
         width: 100%;
         max-width: 140px;
         height: 140px;
-        align-self: flex-end;
       }
 
       .grid {
@@ -614,8 +636,12 @@
         <h1>WP Convert</h1>
         <p>Isi judul, paste Featured Image, lalu isi artikel. Untuk gambar di isi artikel, cukup paste langsung di editor.</p>
       </div>
-      <div class="hero-media">
-        <img src="https://wpconvert.github.io/wpconvert/amanladek.gif" alt="Hero GIF">
+
+      <div class="hero-side">
+        <button class="btn-list" type="button" id="listPostBtn">📋 LIST POST</button>
+        <div class="hero-media">
+          <img src="https://wpconvert.github.io/wpconvert/amanladek.gif" alt="Hero GIF">
+        </div>
       </div>
     </section>
 
@@ -733,6 +759,7 @@
   <script>
     const WP_BASE = 'https://buktijpcasa.com';
     const LOGIN_PAGE = 'https://wpconvert.github.io/wpconvert/login.html';
+    const MANAGE_PAGE = 'https://wpconvert.github.io/wpconvert/manage.html';
     const STORAGE_KEY = 'wpConvertAuth';
 
     const WANTED_CATEGORIES = [
@@ -758,6 +785,7 @@
     const postBtn = document.getElementById('postBtn');
     const clearBtn = document.getElementById('clearBtn');
     const logoutBtn = document.getElementById('logoutBtn');
+    const listPostBtn = document.getElementById('listPostBtn');
     const postStatusEl = document.getElementById('postStatus');
 
     const featuredBoxEl = document.getElementById('featuredBox');
@@ -1017,20 +1045,45 @@
       return data;
     }
 
-    function insertImageIntoEditor(url, alt = '') {
-      restoreSelection();
-      const html = `<p><img src="${escapeAttribute(url)}" alt="${escapeAttribute(alt)}"></p>`;
-      document.execCommand('insertHTML', false, html);
-      saveSelection();
+    function placeCaretAfterNode(node) {
+      const range = document.createRange();
+      range.setStartAfter(node);
+      range.collapse(true);
+
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      savedSelection = range.cloneRange();
     }
 
-    async function handleEditorImagePaste(file) {
+    function insertImageAtRange(url, alt = '', range = null) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = alt;
+
+      const p = document.createElement('p');
+      p.appendChild(img);
+
+      const targetRange = range ? range.cloneRange() : (savedSelection ? savedSelection.cloneRange() : null);
+
+      if (!targetRange) {
+        contentEl.appendChild(p);
+        placeCaretAfterNode(p);
+        return;
+      }
+
+      targetRange.deleteContents();
+      targetRange.insertNode(p);
+      placeCaretAfterNode(p);
+    }
+
+    async function handleEditorImagePaste(file, rangeAtPaste) {
       try {
         showToast('Sedang upload gambar isi artikel...');
         setStatus(postStatusEl, 'Sedang upload gambar isi artikel...');
 
         const media = await uploadMediaFile(file, `article-${Date.now()}.png`);
-        insertImageIntoEditor(media.source_url || '', titleEl.value.trim());
+        insertImageAtRange(media.source_url || '', titleEl.value.trim(), rangeAtPaste);
 
         setStatus(postStatusEl, 'Gambar isi artikel berhasil diupload.', 'success');
         showToast('Gambar isi artikel berhasil');
@@ -1251,6 +1304,7 @@
       } else {
         hideLinkBubble();
       }
+      saveSelection();
     });
 
     contentEl.addEventListener('paste', async (e) => {
@@ -1260,8 +1314,14 @@
           const file = item.getAsFile();
           if (file) {
             e.preventDefault();
-            saveSelection();
-            await handleEditorImagePaste(file);
+
+            const selection = window.getSelection();
+            let rangeAtPaste = null;
+            if (selection.rangeCount > 0) {
+              rangeAtPaste = selection.getRangeAt(0).cloneRange();
+            }
+
+            await handleEditorImagePaste(file, rangeAtPaste);
             return;
           }
         }
@@ -1319,6 +1379,10 @@
       const index = Number(btn.dataset.index);
       tagsState.splice(index, 1);
       renderTagChips();
+    });
+
+    listPostBtn.addEventListener('click', () => {
+      window.location.href = MANAGE_PAGE;
     });
 
     document.addEventListener('click', (e) => {
