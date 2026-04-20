@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manage Post</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial;
+  background: #0b1020;
+  color: white;
+}
+
+.wrap {
+  max-width: 900px;
+  margin: 30px auto;
+  padding: 0 16px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+h1 {
+  margin: 0;
+}
+
+button {
+  border: none;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.btn-new {
+  background: #22c55e;
+  color: white;
+}
+
+.btn-edit {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-delete {
+  background: #dc2626;
+  color: white;
+}
+
+.post {
+  background: #111827;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.post-title {
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.post-date {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+  <div class="topbar">
+    <h1>List Post</h1>
+    <button class="btn-new" onclick="goNew()">POST BARU</button>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<script>
+const WP = "https://buktijpcasa.com";
+const STORAGE_KEY = "wpConvertAuth";
+const CONVERT_PAGE = "https://wpconvert.github.io/wpconvert/";
+
+function getAuth() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  const data = JSON.parse(raw);
+  return data;
+}
+
+function authHeader() {
+  const auth = getAuth();
+  return "Basic " + btoa(auth.username + ":" + auth.password.replace(/\s/g,""));
+}
+
+function goNew() {
+  window.location.href = CONVERT_PAGE;
+}
+
+async function loadPosts() {
+  try {
+    const res = await fetch(`${WP}/wp-json/wp/v2/posts?per_page=10&_embed`);
+    const data = await res.json();
+
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+
+    data.forEach(post => {
+      const el = document.createElement("div");
+      el.className = "post";
+
+      el.innerHTML = `
+        <div class="post-title">${post.title.rendered}</div>
+        <div class="post-date">${new Date(post.date).toLocaleString()}</div>
+        <div class="actions">
+          <button class="btn-edit" onclick="editPost(${post.id})">Edit</button>
+          <button class="btn-delete" onclick="deletePost(${post.id})">Hapus</button>
+        </div>
+      `;
+
+      list.appendChild(el);
+    });
+
+  } catch (err) {
+    document.getElementById("list").innerHTML = "Gagal load post";
+  }
+}
+
+function editPost(id) {
+  // kirim ID ke convert
+  window.location.href = CONVERT_PAGE + "?edit=" + id;
+}
+
+async function deletePost(id) {
+  if (!confirm("Yakin hapus post ini?")) return;
+
+  try {
+    const res = await fetch(`${WP}/wp-json/wp/v2/posts/${id}`, {
+      method: "POST",
+      headers: {
+        "Authorization": authHeader(),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        status: "trash"
+      })
+    });
+
+    if (!res.ok) throw new Error();
+
+    alert("Post berhasil dipindahkan ke Trash");
+    loadPosts();
+
+  } catch {
+    alert("Gagal hapus post");
+  }
+}
+
+loadPosts();
+</script>
+
+</body>
+</html>
