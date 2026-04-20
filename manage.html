@@ -453,7 +453,7 @@ async function confirmDelete() {
     confirmDeleteBtn.textContent = "Menghapus...";
 
     const res = await fetch(`${WP}/wp-json/wp/v2/posts/${pendingDeleteId}`, {
-      method: "POST",
+      method: "PUT",
       headers: {
         "Authorization": authHeader(),
         "Content-Type": "application/json"
