@@ -681,10 +681,10 @@
             <label>Isi Artikel</label>
             <div class="editor-shell">
               <div class="editor-toolbar">
-                <button class="tool-btn" type="button" onclick="formatDoc('bold')"><strong>B</strong></button>
-                <button class="tool-btn" type="button" onclick="formatDoc('italic')"><em>I</em></button>
-                <button class="tool-btn" type="button" onclick="openLinkModal()">🔗</button>
-                <button class="tool-btn" type="button" onclick="insertSpacer()">＋ Jarak</button>
+                <button class="tool-btn" id="boldBtn" type="button"><strong>B</strong></button>
+                <button class="tool-btn" id="italicBtn" type="button"><em>I</em></button>
+                <button class="tool-btn" id="linkBtn" type="button">🔗</button>
+                <button class="tool-btn" id="spacerBtn" type="button">＋ Jarak</button>
               </div>
               <div id="content" class="editor" contenteditable="true"></div>
 
@@ -751,8 +751,8 @@
       <h3>Masukkan Link</h3>
       <input id="linkInput" type="url" placeholder="https://example.com">
       <div class="link-actions">
-        <button class="btn-secondary" type="button" onclick="closeLinkModal()">Batal</button>
-        <button class="btn-primary" type="button" onclick="applyLink()">Simpan</button>
+        <button class="btn-secondary" type="button" id="cancelLinkBtn">Batal</button>
+        <button class="btn-primary" type="button" id="saveLinkBtn">Simpan</button>
       </div>
     </div>
   </div>
@@ -807,12 +807,21 @@
     const categoryListEl = document.getElementById('categoryList');
 
     const toastEl = document.getElementById('toast');
+
     const linkModalEl = document.getElementById('linkModal');
     const linkInputEl = document.getElementById('linkInput');
+    const cancelLinkBtn = document.getElementById('cancelLinkBtn');
+    const saveLinkBtn = document.getElementById('saveLinkBtn');
+
     const linkBubbleEl = document.getElementById('linkBubble');
     const linkBubbleUrlEl = document.getElementById('linkBubbleUrl');
     const openLinkBtn = document.getElementById('openLinkBtn');
     const removeLinkBtn = document.getElementById('removeLinkBtn');
+
+    const boldBtn = document.getElementById('boldBtn');
+    const italicBtn = document.getElementById('italicBtn');
+    const linkBtn = document.getElementById('linkBtn');
+    const spacerBtn = document.getElementById('spacerBtn');
 
     let savedSelection = null;
     let activeLinkEl = null;
@@ -881,8 +890,7 @@
     function addTag(tag) {
       const clean = normalizeTag(tag);
       if (!clean) return;
-      const exists = tagsState.some(t => t.toLowerCase() === clean.toLowerCase());
-      if (exists) return;
+      if (tagsState.some(t => t.toLowerCase() === clean.toLowerCase())) return;
       tagsState.push(clean);
       renderTagChips();
     }
@@ -914,7 +922,7 @@
       return true;
     }
 
-    function formatDoc(command) {
+    function execInlineCommand(command) {
       hideLinkBubble();
       contentEl.focus();
       restoreSelection();
@@ -925,6 +933,10 @@
     function openLinkModal() {
       hideLinkBubble();
       saveSelection();
+      if (!savedSelection || savedSelection.collapsed) {
+        showToast('Blok dulu teks yang mau dijadikan link.', true);
+        return;
+      }
       linkInputEl.value = '';
       linkModalEl.classList.add('show');
       setTimeout(() => linkInputEl.focus(), 50);
@@ -934,36 +946,6 @@
       linkModalEl.classList.remove('show');
     }
 
-    function wrapSelectionWithLink(url) {
-      if (!savedSelection) return false;
-
-      const range = savedSelection.cloneRange();
-      if (!selectionInsideEditor(range)) return false;
-      if (range.collapsed) return false;
-
-      const text = range.toString();
-      if (!text.trim()) return false;
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = text;
-
-      range.deleteContents();
-      range.insertNode(a);
-
-      const afterRange = document.createRange();
-      afterRange.setStartAfter(a);
-      afterRange.collapse(true);
-
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(afterRange);
-      savedSelection = afterRange.cloneRange();
-      return true;
-    }
-
     function applyLink() {
       const url = linkInputEl.value.trim();
       if (!url) {
@@ -971,16 +953,40 @@
         return;
       }
 
-      closeLinkModal();
-      contentEl.focus();
-
-      const ok = wrapSelectionWithLink(url);
-      if (!ok) {
+      if (!savedSelection || savedSelection.collapsed || !selectionInsideEditor(savedSelection)) {
+        closeLinkModal();
         showToast('Blok dulu teks yang mau dijadikan link.', true);
         return;
       }
 
-      showToast('Link berhasil ditambahkan');
+      const range = savedSelection.cloneRange();
+
+      try {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+
+        const contents = range.extractContents();
+        a.appendChild(contents);
+        range.insertNode(a);
+
+        const after = document.createRange();
+        after.setStartAfter(a);
+        after.collapse(true);
+
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(after);
+        savedSelection = after.cloneRange();
+
+        closeLinkModal();
+        contentEl.focus();
+        showToast('Link berhasil ditambahkan');
+      } catch (e) {
+        closeLinkModal();
+        showToast('Gagal pasang link. Coba blok ulang teksnya.', true);
+      }
     }
 
     function insertSpacer() {
@@ -1392,9 +1398,7 @@
           try {
             const mediaRes = await fetch(`${WP_BASE}/wp-json/wp/v2/media/${currentFeaturedMediaId}`);
             const mediaData = await mediaRes.json();
-            if (mediaRes.ok && mediaData.source_url) {
-              setFeaturedPreviewFromUrl(mediaData.source_url);
-            }
+            if (mediaRes.ok && mediaData.source_url) setFeaturedPreviewFromUrl(mediaData.source_url);
           } catch {}
         }
 
@@ -1439,6 +1443,22 @@
       setTimeout(() => window.location.href = LOGIN_PAGE, 400);
     }
 
+    function bindToolbarButtonKeepSelection(btn, handler) {
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        saveSelection();
+      });
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        handler();
+      });
+    }
+
+    bindToolbarButtonKeepSelection(boldBtn, () => execInlineCommand('bold'));
+    bindToolbarButtonKeepSelection(italicBtn, () => execInlineCommand('italic'));
+    bindToolbarButtonKeepSelection(linkBtn, openLinkModal);
+    bindToolbarButtonKeepSelection(spacerBtn, insertSpacer);
+
     openLinkBtn.addEventListener('click', () => {
       if (activeLinkEl) window.open(activeLinkEl.href, '_blank');
     });
@@ -1447,7 +1467,6 @@
 
     contentEl.addEventListener('mouseup', saveSelection);
     contentEl.addEventListener('keyup', saveSelection);
-    contentEl.addEventListener('mouseleave', saveSelection);
     contentEl.addEventListener('focus', saveSelection);
 
     contentEl.addEventListener('click', (e) => {
@@ -1541,6 +1560,8 @@
 
     listPostBtn.addEventListener('click', () => window.location.href = MANAGE_PAGE);
     cancelEditBtn.addEventListener('click', () => window.location.href = MANAGE_PAGE);
+    cancelLinkBtn.addEventListener('click', closeLinkModal);
+    saveLinkBtn.addEventListener('click', applyLink);
 
     document.addEventListener('click', (e) => {
       if (!linkBubbleEl.contains(e.target) && !e.target.closest('#content a')) hideLinkBubble();
