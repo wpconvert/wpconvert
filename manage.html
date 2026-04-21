@@ -368,6 +368,7 @@
 const WP = "https://buktijpcasa.com";
 const STORAGE_KEY = "wpConvertAuth";
 const CONVERT_PAGE = "https://wpconvert.github.io/wpconvert/";
+const LOGIN_PAGE = "https://wpconvert.github.io/wpconvert/login.html";
 
 const listEl = document.getElementById("list");
 const statusEl = document.getElementById("status");
@@ -418,7 +419,7 @@ function authHeader() {
 function requireAuth() {
   const auth = getAuth();
   if (!auth) {
-    window.location.href = CONVERT_PAGE + "login.html";
+    window.location.href = LOGIN_PAGE;
     return false;
   }
   return true;
@@ -429,7 +430,7 @@ function goNew() {
 }
 
 function editPost(id) {
-  window.location.href = CONVERT_PAGE + "?edit=" + id;
+  window.location.href = `${CONVERT_PAGE}?edit=${id}`;
 }
 
 function openDeleteModal(id, title) {
@@ -496,6 +497,7 @@ async function loadPosts() {
 
     data.forEach(post => {
       const title = post.title?.rendered || "(Tanpa Judul)";
+      const plainTitle = title.replace(/<[^>]*>/g, "");
       const date = new Date(post.date).toLocaleString("id-ID");
       const link = post.link || "#";
 
@@ -516,7 +518,7 @@ async function loadPosts() {
       const deleteBtn = el.querySelector(".btn-delete");
 
       editBtn.addEventListener("click", () => editPost(post.id));
-      deleteBtn.addEventListener("click", () => openDeleteModal(post.id, title.replace(/<[^>]*>/g, "")));
+      deleteBtn.addEventListener("click", () => openDeleteModal(post.id, plainTitle));
 
       listEl.appendChild(el);
     });
