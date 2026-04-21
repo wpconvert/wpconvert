@@ -679,7 +679,7 @@
 
           <div class="field">
             <label>Isi Artikel</label>
-            <div class="editor-shell" id="editorShell">
+            <div class="editor-shell">
               <div class="editor-toolbar">
                 <button class="tool-btn" type="button" onclick="formatDoc('bold')"><strong>B</strong></button>
                 <button class="tool-btn" type="button" onclick="formatDoc('italic')"><em>I</em></button>
@@ -699,7 +699,7 @@
             <div class="small-note">Kalau mau tambah gambar ke isi artikel, paste langsung di area editor putih di atas.</div>
           </div>
 
-          <div class="actions" id="actionRow">
+          <div class="actions">
             <button class="btn-primary" id="postBtn" type="button">🚀 Post ke WordPress</button>
             <button class="btn-secondary" id="clearBtn" type="button">🧹 Reset</button>
             <button class="btn-secondary" id="cancelEditBtn" type="button" style="display:none;">↩️ Batal</button>
@@ -827,11 +827,8 @@
       toastEl.textContent = text;
       toastEl.style.background = isError ? '#dc2626' : '#16a34a';
       toastEl.classList.add('show');
-
       clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => {
-        toastEl.classList.remove('show');
-      }, 2200);
+      toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
     }
 
     function setStatus(el, text, type = '') {
@@ -849,7 +846,7 @@
           username: String(data.username).trim(),
           password: String(data.password).replace(/\s+/g, '')
         };
-      } catch (e) {
+      } catch {
         return null;
       }
     }
@@ -876,10 +873,7 @@
       tagsState.forEach((tag, index) => {
         const chip = document.createElement('span');
         chip.className = 'tag-chip';
-        chip.innerHTML = `
-          <span>${tag}</span>
-          <button type="button" data-index="${index}">×</button>
-        `;
+        chip.innerHTML = `<span>${tag}</span><button type="button" data-index="${index}">×</button>`;
         tagsChipsEl.appendChild(chip);
       });
     }
@@ -897,23 +891,27 @@
       return [...tagsState];
     }
 
-    function saveSelection() {
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return;
-
-      const range = selection.getRangeAt(0);
+    function selectionInsideEditor(range) {
+      if (!range) return false;
       const container = range.commonAncestorContainer;
       const node = container.nodeType === 1 ? container : container.parentNode;
+      return contentEl.contains(node);
+    }
 
-      if (!contentEl.contains(node)) return;
+    function saveSelection() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (!selectionInsideEditor(range)) return;
       savedSelection = range.cloneRange();
     }
 
     function restoreSelection() {
-      if (!savedSelection) return;
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(savedSelection);
+      if (!savedSelection) return false;
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedSelection);
+      return true;
     }
 
     function formatDoc(command) {
@@ -926,17 +924,7 @@
 
     function openLinkModal() {
       hideLinkBubble();
-
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const container = range.commonAncestorContainer;
-        const node = container.nodeType === 1 ? container : container.parentNode;
-        if (contentEl.contains(node)) {
-          savedSelection = range.cloneRange();
-        }
-      }
-
+      saveSelection();
       linkInputEl.value = '';
       linkModalEl.classList.add('show');
       setTimeout(() => linkInputEl.focus(), 50);
@@ -944,6 +932,36 @@
 
     function closeLinkModal() {
       linkModalEl.classList.remove('show');
+    }
+
+    function wrapSelectionWithLink(url) {
+      if (!savedSelection) return false;
+
+      const range = savedSelection.cloneRange();
+      if (!selectionInsideEditor(range)) return false;
+      if (range.collapsed) return false;
+
+      const text = range.toString();
+      if (!text.trim()) return false;
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = text;
+
+      range.deleteContents();
+      range.insertNode(a);
+
+      const afterRange = document.createRange();
+      afterRange.setStartAfter(a);
+      afterRange.collapse(true);
+
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(afterRange);
+      savedSelection = afterRange.cloneRange();
+      return true;
     }
 
     function applyLink() {
@@ -956,17 +974,10 @@
       closeLinkModal();
       contentEl.focus();
 
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-
-      if (savedSelection) {
-        selection.addRange(savedSelection);
-      }
-
-      document.execCommand('createLink', false, url);
-
-      if (selection.rangeCount > 0) {
-        savedSelection = selection.getRangeAt(0).cloneRange();
+      const ok = wrapSelectionWithLink(url);
+      if (!ok) {
+        showToast('Blok dulu teks yang mau dijadikan link.', true);
+        return;
       }
 
       showToast('Link berhasil ditambahkan');
@@ -991,7 +1002,6 @@
 
       const rect = linkEl.getBoundingClientRect();
       const shellRect = contentEl.getBoundingClientRect();
-
       const top = rect.bottom - shellRect.top + 10;
       const left = Math.min(rect.left - shellRect.left, shellRect.width - 260);
 
@@ -1002,13 +1012,9 @@
 
     function removeActiveLink() {
       if (!activeLinkEl) return;
-
-      const range = document.createRange();
-      range.selectNodeContents(activeLinkEl);
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-      document.execCommand('unlink', false, null);
+      const parent = activeLinkEl.parentNode;
+      while (activeLinkEl.firstChild) parent.insertBefore(activeLinkEl.firstChild, activeLinkEl);
+      parent.removeChild(activeLinkEl);
       hideLinkBubble();
       contentEl.focus();
       saveSelection();
@@ -1072,11 +1078,7 @@
       });
 
       const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || `Upload gagal (${response.status})`);
-      }
-
+      if (!response.ok) throw new Error(data.message || `Upload gagal (${response.status})`);
       return data;
     }
 
@@ -1084,9 +1086,10 @@
       const range = document.createRange();
       range.setStartAfter(node);
       range.collapse(true);
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
+
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
       savedSelection = range.cloneRange();
     }
 
@@ -1099,6 +1102,7 @@
       p.appendChild(img);
 
       const targetRange = range ? range.cloneRange() : null;
+
       if (!targetRange) {
         contentEl.appendChild(p);
         placeCaretAfterNode(p);
@@ -1213,9 +1217,7 @@
       const createData = await createRes.json().catch(() => ({}));
 
       if (!createRes.ok) {
-        if (createData && createData.data && createData.data.term_id) {
-          return createData.data.term_id;
-        }
+        if (createData && createData.data && createData.data.term_id) return createData.data.term_id;
         throw new Error(createData.message || `Gagal membuat tag: ${tagName}`);
       }
 
@@ -1254,7 +1256,6 @@
         setStatus(postStatusEl, 'Sedang proses post ke WordPress...');
 
         let featuredMediaId = currentFeaturedMediaId || 0;
-
         if (featuredFile) {
           setStatus(featuredStatusEl, 'Sedang upload Featured Image...');
           const media = await uploadMediaFile(featuredFile);
@@ -1288,7 +1289,6 @@
         });
 
         const data = await response.json().catch(() => ({}));
-
         if (!response.ok) throw new Error(data.message || `Post gagal (${response.status})`);
 
         setStatus(postStatusEl, `Post berhasil dibuat. Link: ${data.link || '-'}`, 'success');
@@ -1324,7 +1324,6 @@
         setStatus(postStatusEl, 'Sedang update post...');
 
         let featuredMediaId = currentFeaturedMediaId || 0;
-
         if (featuredFile) {
           setStatus(featuredStatusEl, 'Sedang upload Featured Image baru...');
           const media = await uploadMediaFile(featuredFile);
@@ -1358,7 +1357,6 @@
         });
 
         const data = await response.json().catch(() => ({}));
-
         if (!response.ok) throw new Error(data.message || `Edit gagal (${response.status})`);
 
         setStatus(postStatusEl, `Post berhasil diupdate. Link: ${data.link || '-'}`, 'success');
@@ -1376,10 +1374,8 @@
 
       try {
         setStatus(postStatusEl, 'Sedang load data post...');
-
         const response = await fetch(`${WP_BASE}/wp-json/wp/v2/posts/${editPostId}`);
         const data = await response.json();
-
         if (!response.ok) throw new Error(data.message || 'Gagal load data post');
 
         titleEl.value = data.title?.rendered || '';
@@ -1411,7 +1407,6 @@
 
     function applyEditModeUI() {
       if (!isEditMode) return;
-
       pageTitleEl.textContent = 'WP Convert - Edit Post';
       pageDescEl.textContent = 'Kamu sedang mengedit post yang dipilih dari List Post.';
       cardTitleEl.textContent = 'Edit Konten';
@@ -1432,11 +1427,7 @@
       resetFeaturedPreview();
       setStatus(featuredStatusEl, '');
       setStatus(postStatusEl, '');
-
-      categoryListEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        cb.checked = false;
-      });
-
+      categoryListEl.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
       hideLinkBubble();
       showToast('Form berhasil direset');
       titleEl.focus();
@@ -1445,9 +1436,7 @@
     function logoutNow() {
       localStorage.removeItem(STORAGE_KEY);
       showToast('Login dihapus');
-      setTimeout(() => {
-        window.location.href = LOGIN_PAGE;
-      }, 400);
+      setTimeout(() => window.location.href = LOGIN_PAGE, 400);
     }
 
     openLinkBtn.addEventListener('click', () => {
@@ -1491,9 +1480,7 @@
             let rangeAtPaste = null;
             if (selection && selection.rangeCount > 0) {
               const currentRange = selection.getRangeAt(0);
-              const container = currentRange.commonAncestorContainer;
-              const node = container.nodeType === 1 ? container : container.parentNode;
-              if (contentEl.contains(node)) {
+              if (selectionInsideEditor(currentRange)) {
                 rangeAtPaste = currentRange.cloneRange();
               }
             }
@@ -1505,9 +1492,7 @@
       }
     });
 
-    featuredBoxEl.addEventListener('click', () => {
-      featuredBoxEl.focus();
-    });
+    featuredBoxEl.addEventListener('click', () => featuredBoxEl.focus());
 
     featuredBoxEl.addEventListener('paste', (e) => {
       const items = e.clipboardData?.items || [];
@@ -1522,7 +1507,6 @@
           }
         }
       }
-
       setStatus(featuredStatusEl, 'Clipboard tidak berisi gambar.', 'error');
       showToast('Clipboard tidak berisi gambar', true);
     });
@@ -1555,29 +1539,17 @@
       renderTagChips();
     });
 
-    listPostBtn.addEventListener('click', () => {
-      window.location.href = MANAGE_PAGE;
-    });
-
-    cancelEditBtn.addEventListener('click', () => {
-      window.location.href = MANAGE_PAGE;
-    });
+    listPostBtn.addEventListener('click', () => window.location.href = MANAGE_PAGE);
+    cancelEditBtn.addEventListener('click', () => window.location.href = MANAGE_PAGE);
 
     document.addEventListener('click', (e) => {
-      if (!linkBubbleEl.contains(e.target) && !e.target.closest('#content a')) {
-        hideLinkBubble();
-      }
-      if (e.target === linkModalEl) {
-        closeLinkModal();
-      }
+      if (!linkBubbleEl.contains(e.target) && !e.target.closest('#content a')) hideLinkBubble();
+      if (e.target === linkModalEl) closeLinkModal();
     });
 
     postBtn.addEventListener('click', () => {
-      if (isEditMode) {
-        updateExistingPost();
-      } else {
-        createNewPost();
-      }
+      if (isEditMode) updateExistingPost();
+      else createNewPost();
     });
 
     clearBtn.addEventListener('click', clearAll);
