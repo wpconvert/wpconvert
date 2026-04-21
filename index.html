@@ -867,21 +867,12 @@
       return 'Basic ' + btoa(unescape(encodeURIComponent(`${authData.username}:${authData.password}`)));
     }
 
-    function escapeAttribute(text) {
-      return String(text || '')
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
-
     function normalizeTag(tag) {
       return String(tag || '').trim().replace(/\s+/g, ' ');
     }
 
     function renderTagChips() {
       tagsChipsEl.innerHTML = '';
-
       tagsState.forEach((tag, index) => {
         const chip = document.createElement('span');
         chip.className = 'tag-chip';
@@ -896,10 +887,8 @@
     function addTag(tag) {
       const clean = normalizeTag(tag);
       if (!clean) return;
-
       const exists = tagsState.some(t => t.toLowerCase() === clean.toLowerCase());
       if (exists) return;
-
       tagsState.push(clean);
       renderTagChips();
     }
@@ -908,18 +897,15 @@
       return [...tagsState];
     }
 
-    function formatDoc(command) {
-      hideLinkBubble();
-      document.execCommand(command, false, null);
-      contentEl.focus();
-    }
-
     function saveSelection() {
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) return;
-      const range = selection.getRangeAt(0);
 
-      if (!contentEl.contains(range.commonAncestorContainer)) return;
+      const range = selection.getRangeAt(0);
+      const container = range.commonAncestorContainer;
+      const node = container.nodeType === 1 ? container : container.parentNode;
+
+      if (!contentEl.contains(node)) return;
       savedSelection = range.cloneRange();
     }
 
@@ -930,9 +916,27 @@
       selection.addRange(savedSelection);
     }
 
+    function formatDoc(command) {
+      hideLinkBubble();
+      contentEl.focus();
+      restoreSelection();
+      document.execCommand(command, false, null);
+      saveSelection();
+    }
+
     function openLinkModal() {
       hideLinkBubble();
-      saveSelection();
+
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const container = range.commonAncestorContainer;
+        const node = container.nodeType === 1 ? container : container.parentNode;
+        if (contentEl.contains(node)) {
+          savedSelection = range.cloneRange();
+        }
+      }
+
       linkInputEl.value = '';
       linkModalEl.classList.add('show');
       setTimeout(() => linkInputEl.focus(), 50);
@@ -951,15 +955,29 @@
 
       closeLinkModal();
       contentEl.focus();
-      restoreSelection();
+
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+
+      if (savedSelection) {
+        selection.addRange(savedSelection);
+      }
+
       document.execCommand('createLink', false, url);
+
+      if (selection.rangeCount > 0) {
+        savedSelection = selection.getRangeAt(0).cloneRange();
+      }
+
       showToast('Link berhasil ditambahkan');
     }
 
     function insertSpacer() {
       hideLinkBubble();
-      document.execCommand('insertHTML', false, '<p>&nbsp;</p><p>&nbsp;</p>');
       contentEl.focus();
+      restoreSelection();
+      document.execCommand('insertHTML', false, '<p>&nbsp;</p><p>&nbsp;</p>');
+      saveSelection();
     }
 
     function hideLinkBubble() {
@@ -987,14 +1005,13 @@
 
       const range = document.createRange();
       range.selectNodeContents(activeLinkEl);
-
       const selection = window.getSelection();
       selection.removeAllRanges();
       selection.addRange(range);
-
       document.execCommand('unlink', false, null);
       hideLinkBubble();
       contentEl.focus();
+      saveSelection();
       showToast('Link berhasil dihapus');
     }
 
@@ -1003,7 +1020,6 @@
         URL.revokeObjectURL(featuredPreviewUrl);
         featuredPreviewUrl = '';
       }
-
       featuredPreviewEl.style.display = 'none';
       featuredPreviewEl.removeAttribute('src');
       featuredMetaEl.textContent = 'Belum ada Featured Image.';
@@ -1011,16 +1027,13 @@
 
     function setFeaturedFile(file) {
       featuredFile = file || null;
-
       if (!featuredFile) {
         resetFeaturedPreview();
         setStatus(featuredStatusEl, '');
         return;
       }
 
-      if (featuredPreviewUrl) {
-        URL.revokeObjectURL(featuredPreviewUrl);
-      }
+      if (featuredPreviewUrl) URL.revokeObjectURL(featuredPreviewUrl);
 
       featuredPreviewUrl = URL.createObjectURL(featuredFile);
       featuredPreviewEl.src = featuredPreviewUrl;
@@ -1036,7 +1049,6 @@
         URL.revokeObjectURL(featuredPreviewUrl);
         featuredPreviewUrl = '';
       }
-
       featuredPreviewEl.src = url;
       featuredPreviewEl.style.display = 'block';
       featuredMetaEl.textContent = url;
@@ -1072,7 +1084,6 @@
       const range = document.createRange();
       range.setStartAfter(node);
       range.collapse(true);
-
       const selection = window.getSelection();
       selection.removeAllRanges();
       selection.addRange(range);
@@ -1088,7 +1099,6 @@
       p.appendChild(img);
 
       const targetRange = range ? range.cloneRange() : null;
-
       if (!targetRange) {
         contentEl.appendChild(p);
         placeCaretAfterNode(p);
@@ -1148,7 +1158,7 @@
         if (!filtered.length) {
           categoryListEl.innerHTML = '<div class="small-note">Kategori tidak ditemukan.</div>';
         }
-      } catch (error) {
+      } catch {
         categoryListEl.innerHTML = '<div class="small-note">Gagal load kategori.</div>';
       }
     }
@@ -1279,9 +1289,7 @@
 
         const data = await response.json().catch(() => ({}));
 
-        if (!response.ok) {
-          throw new Error(data.message || `Post gagal (${response.status})`);
-        }
+        if (!response.ok) throw new Error(data.message || `Post gagal (${response.status})`);
 
         setStatus(postStatusEl, `Post berhasil dibuat. Link: ${data.link || '-'}`, 'success');
         showToast('Post berhasil dibuat');
@@ -1351,9 +1359,7 @@
 
         const data = await response.json().catch(() => ({}));
 
-        if (!response.ok) {
-          throw new Error(data.message || `Edit gagal (${response.status})`);
-        }
+        if (!response.ok) throw new Error(data.message || `Edit gagal (${response.status})`);
 
         setStatus(postStatusEl, `Post berhasil diupdate. Link: ${data.link || '-'}`, 'success');
         showToast('Post berhasil diupdate');
@@ -1374,9 +1380,7 @@
         const response = await fetch(`${WP_BASE}/wp-json/wp/v2/posts/${editPostId}`);
         const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error(data.message || 'Gagal load data post');
-        }
+        if (!response.ok) throw new Error(data.message || 'Gagal load data post');
 
         titleEl.value = data.title?.rendered || '';
         contentEl.innerHTML = data.content?.rendered || '';
@@ -1454,6 +1458,8 @@
 
     contentEl.addEventListener('mouseup', saveSelection);
     contentEl.addEventListener('keyup', saveSelection);
+    contentEl.addEventListener('mouseleave', saveSelection);
+    contentEl.addEventListener('focus', saveSelection);
 
     contentEl.addEventListener('click', (e) => {
       const link = e.target.closest('a');
@@ -1465,8 +1471,6 @@
       }
       saveSelection();
     });
-
-    contentEl.addEventListener('focus', saveSelection);
 
     contentEl.addEventListener('paste', async (e) => {
       const items = e.clipboardData?.items || [];
@@ -1487,7 +1491,9 @@
             let rangeAtPaste = null;
             if (selection && selection.rangeCount > 0) {
               const currentRange = selection.getRangeAt(0);
-              if (contentEl.contains(currentRange.commonAncestorContainer)) {
+              const container = currentRange.commonAncestorContainer;
+              const node = container.nodeType === 1 ? container : container.parentNode;
+              if (contentEl.contains(node)) {
                 rangeAtPaste = currentRange.cloneRange();
               }
             }
@@ -1561,7 +1567,6 @@
       if (!linkBubbleEl.contains(e.target) && !e.target.closest('#content a')) {
         hideLinkBubble();
       }
-
       if (e.target === linkModalEl) {
         closeLinkModal();
       }
