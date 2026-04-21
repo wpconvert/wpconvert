@@ -824,6 +824,7 @@
     const spacerBtn = document.getElementById('spacerBtn');
 
     let savedSelection = null;
+    let savedLinkSelection = null;
     let activeLinkEl = null;
     let toastTimer = null;
     let featuredFile = null;
@@ -906,20 +907,37 @@
       return contentEl.contains(node);
     }
 
+    function rangeHasText(range) {
+      return !!(range && !range.collapsed && String(range.toString()).trim());
+    }
+
     function saveSelection() {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
+
       const range = sel.getRangeAt(0);
       if (!selectionInsideEditor(range)) return;
+
       savedSelection = range.cloneRange();
+
+      if (rangeHasText(range)) {
+        savedLinkSelection = range.cloneRange();
+      }
     }
 
-    function restoreSelection() {
-      if (!savedSelection) return false;
+    function restoreSelection(rangeToRestore = savedSelection) {
+      if (!rangeToRestore) return false;
       const sel = window.getSelection();
       sel.removeAllRanges();
-      sel.addRange(savedSelection);
+      sel.addRange(rangeToRestore);
       return true;
+    }
+
+    function normalizeUrl(url) {
+      const clean = String(url || '').trim();
+      if (!clean) return '';
+      if (/^https?:\/\//i.test(clean)) return clean;
+      return 'https://' + clean;
     }
 
     function execInlineCommand(command) {
@@ -933,10 +951,20 @@
     function openLinkModal() {
       hideLinkBubble();
       saveSelection();
-      if (!savedSelection || savedSelection.collapsed) {
+
+      const currentSel = window.getSelection();
+      if (currentSel && currentSel.rangeCount > 0) {
+        const currentRange = currentSel.getRangeAt(0);
+        if (selectionInsideEditor(currentRange) && rangeHasText(currentRange)) {
+          savedLinkSelection = currentRange.cloneRange();
+        }
+      }
+
+      if (!savedLinkSelection || !rangeHasText(savedLinkSelection) || !selectionInsideEditor(savedLinkSelection)) {
         showToast('Blok dulu teks yang mau dijadikan link.', true);
         return;
       }
+
       linkInputEl.value = '';
       linkModalEl.classList.add('show');
       setTimeout(() => linkInputEl.focus(), 50);
@@ -947,39 +975,45 @@
     }
 
     function applyLink() {
-      const url = linkInputEl.value.trim();
+      const url = normalizeUrl(linkInputEl.value);
       if (!url) {
         showToast('Link belum diisi.', true);
         return;
       }
 
-      if (!savedSelection || savedSelection.collapsed || !selectionInsideEditor(savedSelection)) {
+      if (!savedLinkSelection || !rangeHasText(savedLinkSelection) || !selectionInsideEditor(savedLinkSelection)) {
         closeLinkModal();
         showToast('Blok dulu teks yang mau dijadikan link.', true);
         return;
       }
 
-      const range = savedSelection.cloneRange();
-
       try {
-        const a = document.createElement('a');
-        a.href = url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
+        contentEl.focus();
 
-        const contents = range.extractContents();
-        a.appendChild(contents);
-        range.insertNode(a);
+        const restored = restoreSelection(savedLinkSelection);
+        if (!restored) {
+          closeLinkModal();
+          showToast('Gagal mengembalikan blok teks.', true);
+          return;
+        }
 
-        const after = document.createRange();
-        after.setStartAfter(a);
-        after.collapse(true);
+        document.execCommand('createLink', false, url);
 
         const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(after);
-        savedSelection = after.cloneRange();
+        let linkedNode = null;
 
+        if (sel && sel.rangeCount > 0) {
+          let node = sel.anchorNode;
+          if (node && node.nodeType === 3) node = node.parentNode;
+          linkedNode = node && node.closest ? node.closest('a') : null;
+        }
+
+        if (linkedNode) {
+          linkedNode.target = '_blank';
+          linkedNode.rel = 'noopener noreferrer';
+        }
+
+        saveSelection();
         closeLinkModal();
         contentEl.focus();
         showToast('Link berhasil ditambahkan');
@@ -1428,6 +1462,8 @@
       renderTagChips();
       featuredFile = null;
       currentFeaturedMediaId = 0;
+      savedSelection = null;
+      savedLinkSelection = null;
       resetFeaturedPreview();
       setStatus(featuredStatusEl, '');
       setStatus(postStatusEl, '');
@@ -1468,6 +1504,16 @@
     contentEl.addEventListener('mouseup', saveSelection);
     contentEl.addEventListener('keyup', saveSelection);
     contentEl.addEventListener('focus', saveSelection);
+    contentEl.addEventListener('input', saveSelection);
+
+    document.addEventListener('selectionchange', () => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (selectionInsideEditor(range)) {
+        saveSelection();
+      }
+    });
 
     contentEl.addEventListener('click', (e) => {
       const link = e.target.closest('a');
@@ -1562,6 +1608,17 @@
     cancelEditBtn.addEventListener('click', () => window.location.href = MANAGE_PAGE);
     cancelLinkBtn.addEventListener('click', closeLinkModal);
     saveLinkBtn.addEventListener('click', applyLink);
+
+    linkInputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyLink();
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLinkModal();
+      }
+    });
 
     document.addEventListener('click', (e) => {
       if (!linkBubbleEl.contains(e.target) && !e.target.closest('#content a')) hideLinkBubble();
