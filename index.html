@@ -633,8 +633,8 @@
   <div class="wrap">
     <section class="hero">
       <div class="hero-content">
-        <h1>WP Convert</h1>
-        <p>Isi judul, paste Featured Image, lalu isi artikel. Untuk gambar di isi artikel, cukup paste langsung di editor.</p>
+        <h1 id="pageTitle">WP Convert</h1>
+        <p id="pageDesc">Isi judul, paste Featured Image, lalu isi artikel. Untuk gambar di isi artikel, cukup paste langsung di editor.</p>
       </div>
 
       <div class="hero-side">
@@ -649,8 +649,8 @@
       <div class="card">
         <div class="card-head">
           <div>
-            <h2>Input Konten</h2>
-            <span>Paste gambar isi artikel langsung di editor</span>
+            <h2 id="cardTitle">Input Konten</h2>
+            <span id="cardSub">Paste gambar isi artikel langsung di editor</span>
           </div>
         </div>
 
@@ -699,9 +699,10 @@
             <div class="small-note">Kalau mau tambah gambar ke isi artikel, paste langsung di area editor putih di atas.</div>
           </div>
 
-          <div class="actions">
+          <div class="actions" id="actionRow">
             <button class="btn-primary" id="postBtn" type="button">🚀 Post ke WordPress</button>
             <button class="btn-secondary" id="clearBtn" type="button">🧹 Reset</button>
+            <button class="btn-secondary" id="cancelEditBtn" type="button" style="display:none;">↩️ Batal</button>
             <button class="btn-danger" id="logoutBtn" type="button">🔓 Logout</button>
           </div>
 
@@ -778,12 +779,22 @@
       'Uncategorized'
     ];
 
+    const params = new URLSearchParams(window.location.search);
+    const editPostId = params.get('edit');
+    const isEditMode = !!editPostId;
+
+    const pageTitleEl = document.getElementById('pageTitle');
+    const pageDescEl = document.getElementById('pageDesc');
+    const cardTitleEl = document.getElementById('cardTitle');
+    const cardSubEl = document.getElementById('cardSub');
+
     const titleEl = document.getElementById('title');
     const contentEl = document.getElementById('content');
     const tagsInputEl = document.getElementById('tagsInput');
     const tagsChipsEl = document.getElementById('tagsChips');
     const postBtn = document.getElementById('postBtn');
     const clearBtn = document.getElementById('clearBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
     const logoutBtn = document.getElementById('logoutBtn');
     const listPostBtn = document.getElementById('listPostBtn');
     const postStatusEl = document.getElementById('postStatus');
@@ -810,6 +821,7 @@
     let featuredPreviewUrl = '';
     let authData = null;
     let tagsState = [];
+    let currentFeaturedMediaId = 0;
 
     function showToast(text, isError = false) {
       toastEl.textContent = text;
@@ -963,10 +975,7 @@
       const shellRect = contentEl.getBoundingClientRect();
 
       const top = rect.bottom - shellRect.top + 10;
-      const left = Math.min(
-        rect.left - shellRect.left,
-        shellRect.width - 260
-      );
+      const left = Math.min(rect.left - shellRect.left, shellRect.width - 260);
 
       linkBubbleEl.style.top = `${top}px`;
       linkBubbleEl.style.left = `${Math.max(12, left)}px`;
@@ -1022,7 +1031,19 @@
       setStatus(featuredStatusEl, 'Featured Image siap dipakai.', 'success');
     }
 
-    async function uploadMediaFile(file, fallbackName = 'image.png') {
+    function setFeaturedPreviewFromUrl(url) {
+      if (featuredPreviewUrl) {
+        URL.revokeObjectURL(featuredPreviewUrl);
+        featuredPreviewUrl = '';
+      }
+
+      featuredPreviewEl.src = url;
+      featuredPreviewEl.style.display = 'block';
+      featuredMetaEl.textContent = url;
+      setStatus(featuredStatusEl, 'Featured Image lama dari post sedang dipakai.', 'success');
+    }
+
+    async function uploadMediaFile(file) {
       if (!requireAuth()) throw new Error('Login tidak ditemukan.');
 
       const extFromType = (file.type || 'image/png').split('/')[1] || 'png';
@@ -1084,7 +1105,7 @@
         showToast('Sedang upload gambar isi artikel...');
         setStatus(postStatusEl, 'Sedang upload gambar isi artikel...');
 
-        const media = await uploadMediaFile(file, `article-${Date.now()}.png`);
+        const media = await uploadMediaFile(file);
         insertImageAtRange(media.source_url || '', titleEl.value.trim(), rangeAtPaste);
 
         setStatus(postStatusEl, 'Gambar isi artikel berhasil diupload.', 'success');
@@ -1138,12 +1159,29 @@
         .filter(Boolean);
     }
 
+    function setSelectedCategories(ids) {
+      const setIds = new Set((ids || []).map(Number));
+      categoryListEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.checked = setIds.has(Number(cb.value));
+      });
+    }
+
+    async function getTagNamesByIds(ids) {
+      if (!ids || !ids.length) return [];
+      try {
+        const requests = ids.map(id => fetch(`${WP_BASE}/wp-json/wp/v2/tags/${id}`));
+        const results = await Promise.all(requests);
+        const jsons = await Promise.all(results.map(r => r.json().catch(() => null)));
+        return jsons.filter(Boolean).map(item => item.name).filter(Boolean);
+      } catch {
+        return [];
+      }
+    }
+
     async function getOrCreateTagId(tagName) {
       const searchUrl = `${WP_BASE}/wp-json/wp/v2/tags?search=${encodeURIComponent(tagName)}&per_page=100`;
       const searchRes = await fetch(searchUrl, {
-        headers: {
-          'Authorization': authHeader()
-        }
+        headers: { 'Authorization': authHeader() }
       });
       const searchData = await searchRes.json().catch(() => []);
 
@@ -1183,7 +1221,7 @@
       return ids;
     }
 
-    async function postToWordPress() {
+    async function createNewPost() {
       const title = titleEl.value.trim();
       const content = contentEl.innerHTML.trim();
       const categoryIds = getSelectedCategoryIds();
@@ -1201,17 +1239,15 @@
         return;
       }
 
-      if (!requireAuth()) return;
-
       try {
         postBtn.disabled = true;
         setStatus(postStatusEl, 'Sedang proses post ke WordPress...');
 
-        let featuredMediaId = 0;
+        let featuredMediaId = currentFeaturedMediaId || 0;
 
         if (featuredFile) {
           setStatus(featuredStatusEl, 'Sedang upload Featured Image...');
-          const media = await uploadMediaFile(featuredFile, `featured-${Date.now()}.png`);
+          const media = await uploadMediaFile(featuredFile);
           featuredMediaId = media.id || 0;
           setStatus(featuredStatusEl, 'Featured Image berhasil diupload.', 'success');
         }
@@ -1230,9 +1266,7 @@
           tags: tagIds
         };
 
-        if (featuredMediaId) {
-          payload.featured_media = featuredMediaId;
-        }
+        if (featuredMediaId) payload.featured_media = featuredMediaId;
 
         const response = await fetch(`${WP_BASE}/wp-json/wp/v2/posts`, {
           method: 'POST',
@@ -1259,6 +1293,130 @@
       }
     }
 
+    async function updateExistingPost() {
+      const title = titleEl.value.trim();
+      const content = contentEl.innerHTML.trim();
+      const categoryIds = getSelectedCategoryIds();
+      const tagNames = parseTagsInput();
+
+      if (!title) {
+        setStatus(postStatusEl, 'Judul wajib diisi.', 'error');
+        showToast('Judul wajib diisi', true);
+        return;
+      }
+
+      if (!content) {
+        setStatus(postStatusEl, 'Isi artikel wajib diisi.', 'error');
+        showToast('Isi artikel wajib diisi', true);
+        return;
+      }
+
+      try {
+        postBtn.disabled = true;
+        setStatus(postStatusEl, 'Sedang update post...');
+
+        let featuredMediaId = currentFeaturedMediaId || 0;
+
+        if (featuredFile) {
+          setStatus(featuredStatusEl, 'Sedang upload Featured Image baru...');
+          const media = await uploadMediaFile(featuredFile);
+          featuredMediaId = media.id || 0;
+          currentFeaturedMediaId = featuredMediaId;
+          setStatus(featuredStatusEl, 'Featured Image baru berhasil diupload.', 'success');
+        }
+
+        let tagIds = [];
+        if (tagNames.length) {
+          setStatus(postStatusEl, 'Sedang proses tags...');
+          tagIds = await resolveTagIds(tagNames);
+        }
+
+        const payload = {
+          title,
+          content,
+          categories: categoryIds,
+          tags: tagIds
+        };
+
+        if (featuredMediaId) payload.featured_media = featuredMediaId;
+
+        const response = await fetch(`${WP_BASE}/wp-json/wp/v2/posts/${editPostId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.message || `Edit gagal (${response.status})`);
+        }
+
+        setStatus(postStatusEl, `Post berhasil diupdate. Link: ${data.link || '-'}`, 'success');
+        showToast('Post berhasil diupdate');
+      } catch (error) {
+        setStatus(postStatusEl, 'Edit gagal: ' + error.message, 'error');
+        showToast('Edit gagal', true);
+      } finally {
+        postBtn.disabled = false;
+      }
+    }
+
+    async function loadEditData() {
+      if (!isEditMode) return;
+
+      try {
+        setStatus(postStatusEl, 'Sedang load data post...');
+
+        const response = await fetch(`${WP_BASE}/wp-json/wp/v2/posts/${editPostId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Gagal load data post');
+        }
+
+        titleEl.value = data.title?.rendered || '';
+        contentEl.innerHTML = data.content?.rendered || '';
+        setSelectedCategories(data.categories || []);
+
+        const tagNames = await getTagNamesByIds(data.tags || []);
+        tagsState = [];
+        tagNames.forEach(name => addTag(name));
+        renderTagChips();
+
+        currentFeaturedMediaId = data.featured_media || 0;
+        if (currentFeaturedMediaId) {
+          try {
+            const mediaRes = await fetch(`${WP_BASE}/wp-json/wp/v2/media/${currentFeaturedMediaId}`);
+            const mediaData = await mediaRes.json();
+            if (mediaRes.ok && mediaData.source_url) {
+              setFeaturedPreviewFromUrl(mediaData.source_url);
+            }
+          } catch {}
+        }
+
+        setStatus(postStatusEl, 'Data post berhasil dimuat.', 'success');
+      } catch (error) {
+        setStatus(postStatusEl, 'Gagal load data edit: ' + error.message, 'error');
+        showToast('Gagal load data edit', true);
+      }
+    }
+
+    function applyEditModeUI() {
+      if (!isEditMode) return;
+
+      pageTitleEl.textContent = 'WP Convert - Edit Post';
+      pageDescEl.textContent = 'Kamu sedang mengedit post yang dipilih dari List Post.';
+      cardTitleEl.textContent = 'Edit Konten';
+      cardSubEl.textContent = 'Mode edit aktif';
+      postBtn.textContent = '✏️ EDIT POST';
+      clearBtn.style.display = 'none';
+      cancelEditBtn.style.display = 'inline-flex';
+    }
+
     function clearAll() {
       titleEl.value = '';
       contentEl.innerHTML = '';
@@ -1266,6 +1424,7 @@
       tagsState = [];
       renderTagChips();
       featuredFile = null;
+      currentFeaturedMediaId = 0;
       resetFeaturedPreview();
       setStatus(featuredStatusEl, '');
       setStatus(postStatusEl, '');
@@ -1288,9 +1447,7 @@
     }
 
     openLinkBtn.addEventListener('click', () => {
-      if (activeLinkEl) {
-        window.open(activeLinkEl.href, '_blank');
-      }
+      if (activeLinkEl) window.open(activeLinkEl.href, '_blank');
     });
 
     removeLinkBtn.addEventListener('click', removeActiveLink);
@@ -1367,10 +1524,8 @@
     tagsInputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ',') {
         e.preventDefault();
-
         const parts = tagsInputEl.value.split(',');
         parts.forEach(part => addTag(part));
-
         tagsInputEl.value = '';
       } else if (e.key === 'Backspace' && !tagsInputEl.value.trim() && tagsState.length) {
         tagsState.pop();
@@ -1389,13 +1544,16 @@
     tagsChipsEl.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-index]');
       if (!btn) return;
-
       const index = Number(btn.dataset.index);
       tagsState.splice(index, 1);
       renderTagChips();
     });
 
     listPostBtn.addEventListener('click', () => {
+      window.location.href = MANAGE_PAGE;
+    });
+
+    cancelEditBtn.addEventListener('click', () => {
       window.location.href = MANAGE_PAGE;
     });
 
@@ -1409,14 +1567,26 @@
       }
     });
 
-    postBtn.addEventListener('click', postToWordPress);
+    postBtn.addEventListener('click', () => {
+      if (isEditMode) {
+        updateExistingPost();
+      } else {
+        createNewPost();
+      }
+    });
+
     clearBtn.addEventListener('click', clearAll);
     logoutBtn.addEventListener('click', logoutNow);
 
-    if (requireAuth()) {
-      loadCategories();
+    async function init() {
+      if (!requireAuth()) return;
+      await loadCategories();
       renderTagChips();
+      applyEditModeUI();
+      await loadEditData();
     }
+
+    init();
   </script>
 </body>
 </html>
