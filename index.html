@@ -1193,6 +1193,208 @@
       placeCaretAfterNode(p);
     }
 
+    function insertFragmentAtSelection(fragment) {
+      contentEl.focus();
+
+      if (savedSelection && selectionInsideEditor(savedSelection)) {
+        restoreSelection(savedSelection);
+      }
+
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) {
+        contentEl.appendChild(fragment);
+        saveSelection();
+        return;
+      }
+
+      const range = sel.getRangeAt(0);
+      if (!selectionInsideEditor(range)) {
+        contentEl.appendChild(fragment);
+        saveSelection();
+        return;
+      }
+
+      range.deleteContents();
+      const lastNode = fragment.lastChild;
+      range.insertNode(fragment);
+
+      if (lastNode) {
+        placeCaretAfterNode(lastNode);
+      } else {
+        saveSelection();
+      }
+    }
+
+    function sanitizePastedHtml(html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+
+      const allowedBlockTags = new Set(['P', 'DIV', 'BR', 'UL', 'OL', 'LI', 'BLOCKQUOTE']);
+      const allowedInlineTags = new Set(['A', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'SPAN']);
+      const skipTags = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'HEAD', 'TITLE']);
+
+      function cleanNode(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return document.createTextNode(node.nodeValue || '');
+        }
+
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          return document.createDocumentFragment();
+        }
+
+        const tag = node.tagName.toUpperCase();
+
+        if (skipTags.has(tag)) {
+          return document.createDocumentFragment();
+        }
+
+        if (tag === 'A') {
+          const href = (node.getAttribute('href') || '').trim();
+          const a = document.createElement('a');
+
+          if (href) {
+            a.href = href;
+          }
+
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+
+          Array.from(node.childNodes).forEach(child => {
+            a.appendChild(cleanNode(child));
+          });
+
+          if (!a.getAttribute('href')) {
+            const frag = document.createDocumentFragment();
+            while (a.firstChild) frag.appendChild(a.firstChild);
+            return frag;
+          }
+
+          return a;
+        }
+
+        if (tag === 'BR') {
+          return document.createElement('br');
+        }
+
+        if (tag === 'B' || tag === 'STRONG') {
+          const el = document.createElement('strong');
+          Array.from(node.childNodes).forEach(child => el.appendChild(cleanNode(child)));
+          return el;
+        }
+
+        if (tag === 'I' || tag === 'EM') {
+          const el = document.createElement('em');
+          Array.from(node.childNodes).forEach(child => el.appendChild(cleanNode(child)));
+          return el;
+        }
+
+        if (tag === 'U') {
+          const el = document.createElement('u');
+          Array.from(node.childNodes).forEach(child => el.appendChild(cleanNode(child)));
+          return el;
+        }
+
+        if (tag === 'S') {
+          const el = document.createElement('s');
+          Array.from(node.childNodes).forEach(child => el.appendChild(cleanNode(child)));
+          return el;
+        }
+
+        if (tag === 'P') {
+          const el = document.createElement('p');
+          Array.from(node.childNodes).forEach(child => el.appendChild(cleanNode(child)));
+          return el;
+        }
+
+        if (tag === 'DIV') {
+          const hasBlockChildren = Array.from(node.children).some(child =>
+            ['DIV', 'P', 'UL', 'OL', 'LI', 'BLOCKQUOTE'].includes(child.tagName.toUpperCase())
+          );
+
+          if (hasBlockChildren) {
+            const frag = document.createDocumentFragment();
+            Array.from(node.childNodes).forEach(child => frag.appendChild(cleanNode(child)));
+            return frag;
+          }
+
+          const p = document.createElement('p');
+          Array.from(node.childNodes).forEach(child => p.appendChild(cleanNode(child)));
+          return p;
+        }
+
+        if (tag === 'UL' || tag === 'OL' || tag === 'LI' || tag === 'BLOCKQUOTE') {
+          const el = document.createElement(tag.toLowerCase());
+          Array.from(node.childNodes).forEach(child => el.appendChild(cleanNode(child)));
+          return el;
+        }
+
+        if (tag === 'SPAN') {
+          const frag = document.createDocumentFragment();
+          Array.from(node.childNodes).forEach(child => frag.appendChild(cleanNode(child)));
+          return frag;
+        }
+
+        if (allowedBlockTags.has(tag) || allowedInlineTags.has(tag)) {
+          const el = document.createElement(tag.toLowerCase());
+          Array.from(node.childNodes).forEach(child => el.appendChild(cleanNode(child)));
+          return el;
+        }
+
+        const frag = document.createDocumentFragment();
+        Array.from(node.childNodes).forEach(child => frag.appendChild(cleanNode(child)));
+        return frag;
+      }
+
+      const fragment = document.createDocumentFragment();
+      Array.from(doc.body.childNodes).forEach(child => {
+        fragment.appendChild(cleanNode(child));
+      });
+
+      return fragment;
+    }
+
+    function insertPlainTextAsParagraphs(text) {
+      const lines = String(text || '').replace(/\r/g, '').split('\n');
+      const fragment = document.createDocumentFragment();
+      let paragraph = document.createElement('p');
+      let hasContent = false;
+
+      lines.forEach((line, index) => {
+        const isLast = index === lines.length - 1;
+        if (line.trim() === '') {
+          if (hasContent) {
+            fragment.appendChild(paragraph);
+            paragraph = document.createElement('p');
+            hasContent = false;
+          } else {
+            const emptyP = document.createElement('p');
+            emptyP.innerHTML = '&nbsp;';
+            fragment.appendChild(emptyP);
+          }
+          return;
+        }
+
+        if (hasContent) {
+          paragraph.appendChild(document.createElement('br'));
+        }
+
+        paragraph.appendChild(document.createTextNode(line));
+        hasContent = true;
+
+        if (isLast && hasContent) {
+          fragment.appendChild(paragraph);
+        }
+      });
+
+      if (!fragment.childNodes.length) {
+        const p = document.createElement('p');
+        p.textContent = text;
+        fragment.appendChild(p);
+      }
+
+      insertFragmentAtSelection(fragment);
+    }
+
     async function handleEditorImagePaste(file, rangeAtPaste) {
       try {
         showToast('Sedang upload gambar isi artikel...');
@@ -1565,6 +1767,7 @@
 
     contentEl.addEventListener('paste', async (e) => {
       const items = e.clipboardData?.items || [];
+
       for (const item of items) {
         if (item.type.startsWith('image/')) {
           const blob = item.getAsFile();
@@ -1591,6 +1794,21 @@
             return;
           }
         }
+      }
+
+      const htmlData = e.clipboardData?.getData('text/html');
+      const textData = e.clipboardData?.getData('text/plain');
+
+      if (htmlData) {
+        e.preventDefault();
+        const cleanFragment = sanitizePastedHtml(htmlData);
+        insertFragmentAtSelection(cleanFragment);
+        return;
+      }
+
+      if (textData) {
+        e.preventDefault();
+        insertPlainTextAsParagraphs(textData);
       }
     });
 
