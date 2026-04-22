@@ -824,7 +824,7 @@
     const spacerBtn = document.getElementById('spacerBtn');
 
     let savedSelection = null;
-    let savedLinkSelection = null;
+    let linkSelection = null;
     let activeLinkEl = null;
     let toastTimer = null;
     let featuredFile = null;
@@ -907,7 +907,7 @@
       return contentEl.contains(node);
     }
 
-    function rangeHasText(range) {
+    function rangeHasSelectedText(range) {
       return !!(range && !range.collapsed && String(range.toString()).trim());
     }
 
@@ -920,30 +920,50 @@
 
       savedSelection = range.cloneRange();
 
-      if (rangeHasText(range)) {
-        savedLinkSelection = range.cloneRange();
+      if (rangeHasSelectedText(range)) {
+        linkSelection = range.cloneRange();
       }
     }
 
-    function restoreSelection(rangeToRestore = savedSelection) {
-      if (!rangeToRestore) return false;
+    function restoreSelection(range) {
+      if (!range) return false;
       const sel = window.getSelection();
       sel.removeAllRanges();
-      sel.addRange(rangeToRestore);
+      sel.addRange(range);
       return true;
     }
 
     function normalizeUrl(url) {
       const clean = String(url || '').trim();
       if (!clean) return '';
-      if (/^https?:\/\//i.test(clean)) return clean;
+      if (/^(https?:)?\/\//i.test(clean)) return clean.startsWith('//') ? 'https:' + clean : clean;
       return 'https://' + clean;
+    }
+
+    function getSafeLinkRange() {
+      if (!linkSelection) return null;
+      if (!selectionInsideEditor(linkSelection)) return null;
+      if (!rangeHasSelectedText(linkSelection)) return null;
+      return linkSelection.cloneRange();
+    }
+
+    function selectNodeContentsAndCollapseAfter(node) {
+      const range = document.createRange();
+      range.setStartAfter(node);
+      range.collapse(true);
+
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      savedSelection = range.cloneRange();
+      linkSelection = null;
     }
 
     function execInlineCommand(command) {
       hideLinkBubble();
       contentEl.focus();
-      restoreSelection();
+      restoreSelection(savedSelection);
       document.execCommand(command, false, null);
       saveSelection();
     }
@@ -952,15 +972,8 @@
       hideLinkBubble();
       saveSelection();
 
-      const currentSel = window.getSelection();
-      if (currentSel && currentSel.rangeCount > 0) {
-        const currentRange = currentSel.getRangeAt(0);
-        if (selectionInsideEditor(currentRange) && rangeHasText(currentRange)) {
-          savedLinkSelection = currentRange.cloneRange();
-        }
-      }
-
-      if (!savedLinkSelection || !rangeHasText(savedLinkSelection) || !selectionInsideEditor(savedLinkSelection)) {
+      const safeRange = getSafeLinkRange();
+      if (!safeRange) {
         showToast('Blok dulu teks yang mau dijadikan link.', true);
         return;
       }
@@ -974,6 +987,36 @@
       linkModalEl.classList.remove('show');
     }
 
+    function unwrapLink(linkEl) {
+      if (!linkEl || !linkEl.parentNode) return;
+      const parent = linkEl.parentNode;
+      while (linkEl.firstChild) {
+        parent.insertBefore(linkEl.firstChild, linkEl);
+      }
+      parent.removeChild(linkEl);
+    }
+
+    function findNearestLink(node) {
+      if (!node) return null;
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+      return node && node.closest ? node.closest('a') : null;
+    }
+
+    function applyLinkByRange(range, url) {
+      const frag = range.extractContents();
+      const textOnly = frag.textContent || '';
+      if (!textOnly.trim()) return null;
+
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.appendChild(frag);
+
+      range.insertNode(anchor);
+      return anchor;
+    }
+
     function applyLink() {
       const url = normalizeUrl(linkInputEl.value);
       if (!url) {
@@ -981,7 +1024,8 @@
         return;
       }
 
-      if (!savedLinkSelection || !rangeHasText(savedLinkSelection) || !selectionInsideEditor(savedLinkSelection)) {
+      const range = getSafeLinkRange();
+      if (!range) {
         closeLinkModal();
         showToast('Blok dulu teks yang mau dijadikan link.', true);
         return;
@@ -990,34 +1034,30 @@
       try {
         contentEl.focus();
 
-        const restored = restoreSelection(savedLinkSelection);
-        if (!restored) {
+        const startLink = findNearestLink(range.startContainer);
+        const endLink = findNearestLink(range.endContainer);
+
+        if (startLink && startLink === endLink) {
+          startLink.href = url;
+          startLink.target = '_blank';
+          startLink.rel = 'noopener noreferrer';
+          selectNodeContentsAndCollapseAfter(startLink);
           closeLinkModal();
-          showToast('Gagal mengembalikan blok teks.', true);
+          showToast('Link berhasil diperbarui');
           return;
         }
 
-        document.execCommand('createLink', false, url);
-
-        const sel = window.getSelection();
-        let linkedNode = null;
-
-        if (sel && sel.rangeCount > 0) {
-          let node = sel.anchorNode;
-          if (node && node.nodeType === 3) node = node.parentNode;
-          linkedNode = node && node.closest ? node.closest('a') : null;
+        const anchor = applyLinkByRange(range, url);
+        if (!anchor) {
+          closeLinkModal();
+          showToast('Teks link tidak valid.', true);
+          return;
         }
 
-        if (linkedNode) {
-          linkedNode.target = '_blank';
-          linkedNode.rel = 'noopener noreferrer';
-        }
-
-        saveSelection();
+        selectNodeContentsAndCollapseAfter(anchor);
         closeLinkModal();
-        contentEl.focus();
         showToast('Link berhasil ditambahkan');
-      } catch (e) {
+      } catch (error) {
         closeLinkModal();
         showToast('Gagal pasang link. Coba blok ulang teksnya.', true);
       }
@@ -1026,7 +1066,7 @@
     function insertSpacer() {
       hideLinkBubble();
       contentEl.focus();
-      restoreSelection();
+      restoreSelection(savedSelection);
       document.execCommand('insertHTML', false, '<p>&nbsp;</p><p>&nbsp;</p>');
       saveSelection();
     }
@@ -1052,9 +1092,7 @@
 
     function removeActiveLink() {
       if (!activeLinkEl) return;
-      const parent = activeLinkEl.parentNode;
-      while (activeLinkEl.firstChild) parent.insertBefore(activeLinkEl.firstChild, activeLinkEl);
-      parent.removeChild(activeLinkEl);
+      unwrapLink(activeLinkEl);
       hideLinkBubble();
       contentEl.focus();
       saveSelection();
@@ -1131,6 +1169,7 @@
       sel.removeAllRanges();
       sel.addRange(range);
       savedSelection = range.cloneRange();
+      linkSelection = null;
     }
 
     function insertImageAtRange(url, alt = '', range = null) {
@@ -1463,7 +1502,7 @@
       featuredFile = null;
       currentFeaturedMediaId = 0;
       savedSelection = null;
-      savedLinkSelection = null;
+      linkSelection = null;
       resetFeaturedPreview();
       setStatus(featuredStatusEl, '');
       setStatus(postStatusEl, '');
@@ -1510,9 +1549,7 @@
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
-      if (selectionInsideEditor(range)) {
-        saveSelection();
-      }
+      if (selectionInsideEditor(range)) saveSelection();
     });
 
     contentEl.addEventListener('click', (e) => {
@@ -1613,8 +1650,7 @@
       if (e.key === 'Enter') {
         e.preventDefault();
         applyLink();
-      }
-      if (e.key === 'Escape') {
+      } else if (e.key === 'Escape') {
         e.preventDefault();
         closeLinkModal();
       }
